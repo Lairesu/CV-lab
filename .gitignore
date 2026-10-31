@@ -1,0 +1,21 @@
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# AI models
+models/
+*.pt
+
+# Experimental input and generated images
+projects/canteen-vision/images/
+projects/canteen-vision/canteen-test/
+projects/canteen-vision/demo/
+
+# Generated videos
+*.mp4

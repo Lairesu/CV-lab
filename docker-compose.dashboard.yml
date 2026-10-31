@@ -1,0 +1,10 @@
+# Session 02: static student dashboard only.
+# Merge with the existing docker-compose.yml; do not alter the vision service.
+services:
+  dashboard:
+    image: nginx:stable-alpine
+    ports:
+      - "127.0.0.1:8099:80"
+    volumes:
+      - ./projects/smart-canteen/frontend:/usr/share/nginx/html:ro
+    restart: unless-stopped

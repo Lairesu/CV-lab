@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111c20">
+  <meta name="description" content="Smart Canteen student seating availability — sample dashboard for the case competition.">
+  <title>Smart Canteen | Sample Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="sample-data.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Smart Canteen home">
+        <span class="brand-mark" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="11" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 16v4M16 16v4M8 3v2M16 3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+        <span>Smart<span class="brand-accent">Canteen</span></span>
+      </a>
+      <span class="topbar-label">Student preview <span class="tiny-dot" aria-hidden="true"></span> Session 02</span>
+    </header>
+
+    <main>
+      <section class="demo-banner" role="note" aria-label="Demo notice">
+        <span class="demo-icon" aria-hidden="true">✦</span>
+        <div><strong>DEMO MODE · SAMPLE DATA ONLY</strong><span>No camera, AI feed, or real occupancy data is connected.</span></div>
+      </section>
+
+      <section class="intro" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">SPACE AVAILABILITY / DEMONSTRATION</p>
+          <h1 id="page-title">Find your seat.<br><em>Skip the search.</em></h1>
+          <p class="intro-description">A quick view of available tables before you head over. Designed for campus canteens today—and other shared spaces tomorrow.</p>
+        </div>
+        <div class="intro-art" aria-hidden="true"><span class="art-table"></span><span class="art-chair c1"></span><span class="art-chair c2"></span><span class="art-chair c3"></span><span class="art-chair c4"></span></div>
+      </section>
+
+      <section class="venue-card" aria-label="Current venue">
+        <div class="venue-symbol" aria-hidden="true">⌂</div>
+        <div class="venue-info"><p class="eyebrow">SELECTED VENUE · DEMO</p><h2 id="venue-name">Loading venue…</h2><p id="venue-description"></p></div>
+        <span class="venue-chip" id="venue-type">Canteen</span>
+      </section>
+
+      <section class="overview" aria-labelledby="overview-heading">
+        <div class="section-heading"><div><p class="eyebrow">AT A GLANCE</p><h2 id="overview-heading">Table availability</h2></div><span class="snapshot-label">Illustrative snapshot · Not live</span></div>
+        <div class="stat-grid">
+          <article class="stat-card available"><div class="stat-icon" aria-hidden="true">✓</div><div class="stat-value" id="available-count">—</div><div class="stat-label">Available tables</div></article>
+          <article class="stat-card occupied"><div class="stat-icon" aria-hidden="true">●</div><div class="stat-value" id="occupied-count">—</div><div class="stat-label">Occupied tables</div></article>
+          <article class="stat-card unknown"><div class="stat-icon" aria-hidden="true">?</div><div class="stat-value" id="unknown-count">—</div><div class="stat-label">Unknown / review</div></article>
+        </div>
+        <div class="distribution" aria-label="Sample table availability breakdown">
+          <div class="distribution-heading"><span>Example availability mix</span><strong id="total-tables">— tables</strong></div>
+          <div class="distribution-track" id="distribution-track" role="img" aria-label="Loading example counts"></div>
+          <p>Counts represent tables, <strong>not individually available seats</strong>.</p>
+        </div>
+      </section>
+
+      <section class="tables-section" aria-labelledby="tables-heading">
+        <div class="section-heading tables-header"><div><p class="eyebrow">EXPLORE SEATING</p><h2 id="tables-heading">Tables by status</h2></div><span class="small-label" id="table-count-label"></span></div>
+        <div class="filter-bar" role="group" aria-label="Filter example tables">
+          <button type="button" class="filter-chip active" data-filter="all" aria-pressed="true">All tables</button>
+          <button type="button" class="filter-chip" data-filter="available" aria-pressed="false">Available</button>
+          <button type="button" class="filter-chip" data-filter="occupied" aria-pressed="false">Occupied</button>
+          <button type="button" class="filter-chip" data-filter="unknown" aria-pressed="false">Unknown</button>
+        </div>
+        <div class="table-grid" id="table-grid" aria-live="polite"></div>
+      </section>
+
+      <section class="explain-card" aria-labelledby="how-it-works-title">
+        <div class="explain-icon" aria-hidden="true">i</div>
+        <div><h2 id="how-it-works-title">What happens next?</h2><p>In future sessions, a permitted fixed-camera feed will be processed by YOLO and an occupancy algorithm. Only estimated table statuses—not CCTV footage—will appear here. <strong>Unknown</strong> means a table cannot be assessed reliably.</p></div>
+      </section>
+    </main>
+    <footer class="footer"><span>Smart Canteen · Case competition MVP</span><span>Demo data only · Privacy-first by design</span></footer>
+  </div>
+</body>
+</html>

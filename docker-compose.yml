@@ -1,0 +1,30 @@
+# Computer Vision
+services:
+  vision:
+    image: ultralytics/ultralytics:latest-cpu
+    container_name: cv-lab
+
+    working_dir: /workspace/projects
+
+    volumes:
+      - ./projects:/workspace/projects
+      - ./models:/workspace/models
+
+    environment:
+      HOME: /tmp
+
+    user: "${LOCAL_UID}:${LOCAL_GID}"
+
+    stdin_open: true
+    tty: true
+
+    command: sleep infinity
+
+    ports:
+      - "127.0.0.1:8098:8098"
+
+    devices:
+      - /dev/video0:/dev/video0
+
+    group_add:
+      - "${VIDEO_GID}"
