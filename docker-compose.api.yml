@@ -1,0 +1,16 @@
+
+services:
+  api:
+    build:
+      context: ./projects/smart-canteen/backend
+
+    ports:
+      - "127.0.0.1:8100:8000"
+
+    volumes:
+      - smart_canteen_data:/data
+
+    restart: unless-stopped
+
+volumes:
+  smart_canteen_data:

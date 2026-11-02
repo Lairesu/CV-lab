@@ -80,3 +80,245 @@ h1 em { color: var(--accent); font-style: normal; }
   .distribution { padding: 14px; }.explain-card { padding: 15px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+
+
+
+/* =========================
+   Admin page
+   ========================= */
+
+   .admin-body {
+  min-height: 100vh;
+}
+
+.admin-header {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.admin-subtitle {
+  margin: 8px 0 0;
+  color: rgba(240, 246, 241, 0.78);
+}
+
+.admin-nav {
+  display: flex;
+  align-items: center;
+}
+
+.admin-link {
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid rgba(183, 235, 173, 0.25);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(20, 34, 38, 0.55);
+}
+
+.admin-link:hover {
+  background: rgba(20, 34, 38, 0.8);
+}
+
+.admin-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+}
+
+.admin-panel {
+  background: rgba(20, 34, 38, 0.8);
+  border: 1px solid rgba(183, 235, 173, 0.12);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+}
+
+.editor-stage {
+  position: relative;
+  margin-top: 18px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(183, 235, 173, 0.15);
+  background: rgba(9, 19, 22, 0.85);
+}
+
+.stage-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.zone-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.zone-status {
+  margin-top: 14px;
+  color: rgba(240, 246, 241, 0.78);
+}
+
+.table-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.table-list-empty {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(9, 19, 22, 0.55);
+  color: rgba(240, 246, 241, 0.78);
+  border: 1px dashed rgba(183, 235, 173, 0.15);
+}
+
+@media (max-width: 900px) {
+  .admin-main {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-header {
+    flex-direction: column;
+  }
+}
+
+/* Zone drawing experiment */
+
+.zone-layer {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.zone-preview {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #5ee8b1;
+  background: rgba(94, 232, 177, 0.22);
+  pointer-events: none;
+}
+
+/* Saved table zone */
+
+.zone-saved {
+  border-color: #36e2ae;
+  background: rgba(54, 226, 174, 0.18);
+}
+
+.zone-saved::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 4px 7px;
+  border-radius: 0 0 6px 0;
+  background: #087b65;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Configured table list */
+
+.table-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(183, 235, 173, 0.2);
+  border-radius: 10px;
+}
+
+.table-list button {
+  cursor: pointer;
+  border: 1px solid #a75b5b;
+  border-radius: 7px;
+  padding: 6px 10px;
+  background: transparent;
+  color: #ffaaaa;
+}
+
+
+/* Admin manual-status controls */
+
+.manual-status {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(183, 235, 173, 0.18);
+}
+
+.manual-status h3 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.manual-status label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.manual-status select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(183, 235, 173, 0.25);
+  border-radius: 10px;
+  background: #142428;
+  color: #effaf5;
+  font: inherit;
+}
+
+.manual-status select:focus-visible,
+.manual-status button:focus-visible {
+  outline: 2px solid #61e8b3;
+  outline-offset: 3px;
+}
+
+.manual-status button {
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: #69dfaa;
+  color: #102923;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.manual-status button:hover:not(:disabled) {
+  background: #8cefc1;
+}
+
+.manual-status button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#status-feedback {
+  margin: 4px 0 0;
+  color: #b9d6ca;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+/* Information about the student dashboard's data freshness */
+
+.data-sync-status {
+  margin: 12px 0;
+  color: #b9d6ca;
+  font-size: 0.85rem;
+}

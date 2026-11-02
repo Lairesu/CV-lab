@@ -7,4 +7,5 @@ services:
       - "127.0.0.1:8099:80"
     volumes:
       - ./projects/smart-canteen/frontend:/usr/share/nginx/html:ro
+      - ./projects/smart-canteen/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped

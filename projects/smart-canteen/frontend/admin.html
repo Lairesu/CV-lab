@@ -1,0 +1,122 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Smart Canteen | Admin</title>
+
+  <link rel="stylesheet" href="styles.css?v=6">
+  <script src="admin.js?v=10" defer></script>
+</head>
+
+<body class="admin-body">
+
+  <!-- Admin page header and navigation -->
+  <header class="admin-header">
+    <div>
+      <p class="eyebrow">Admin workspace</p>
+      <h1>Smart Canteen — Zone Editor</h1>
+      <p class="admin-subtitle">
+        Configure table zones and manage seating availability.
+      </p>
+    </div>
+
+    <nav class="admin-nav">
+      <a class="admin-link" href="/">Student dashboard</a>
+    </nav>
+  </header>
+
+  <main class="admin-main">
+
+    <!-- Table-zone configuration -->
+    <section class="admin-panel">
+      <h2>Table Zone Editor</h2>
+      <p>
+        Draw rectangular zones around tables in the reference image.
+        Zone configurations are currently saved in this browser.
+      </p>
+
+      <!-- Reference image and rectangle-drawing layer -->
+      <div class="editor-stage" id="camera-stage">
+        <img
+          src="assets/canteen-demo.png"
+          alt="Reference image of café seating"
+          class="stage-image"
+          draggable="false"
+        >
+
+        <div
+          id="zone-layer"
+          class="zone-layer"
+          aria-hidden="true">
+        </div>
+      </div>
+
+      <!-- Save a newly drawn rectangle -->
+      <button id="save-zone" type="button" disabled>
+        Save Zone
+      </button>
+
+      <p id="zone-status" class="zone-status" aria-live="polite">
+        No table zones configured.
+      </p>
+    </section>
+
+    <!-- Zone list and manual availability controls -->
+    <aside class="admin-panel">
+
+      <h2>Configured tables</h2>
+      <p>
+        Manage the table zones configured for this reference image.
+      </p>
+
+      <!-- JavaScript generates this list from localStorage -->
+      <ul id="table-list" class="table-list">
+        <li class="table-list-empty">
+          No configured tables yet.
+        </li>
+      </ul>
+
+      <!-- Manual table statuses are saved through FastAPI and SQLite -->
+      <section class="manual-status">
+        <h3>Manual status update</h3>
+
+        <label for="manual-table-id">
+          Select database table
+        </label>
+
+        <!-- JavaScript loads database tables into this dropdown -->
+        <select id="manual-table-id" disabled>
+          <option value="">Loading tables...</option>
+        </select>
+
+        <label for="table-01-status">
+          New status
+        </label>
+
+        <select id="table-01-status">
+          <option value="available">Available</option>
+          <option value="occupied">Occupied</option>
+          <option value="unknown">Unknown</option>
+        </select>
+
+        <!-- Enabled after database tables load successfully -->
+        <button id="apply-status" type="button" disabled>
+          Update selected table
+        </button>
+
+        <!-- Displays loading, success and error messages -->
+        <p id="status-feedback" role="status">
+          Waiting for database tables...
+        </p>
+      </section>
+
+    </aside>
+
+  </main>
+
+</body>
+</html>
