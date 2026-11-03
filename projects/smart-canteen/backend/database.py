@@ -7,6 +7,7 @@ DB_PATH = "/data/smart-canteen.db"
 
 def initialize_database():
     with closing(sqlite3.connect(DB_PATH)) as conn:
+        # Existing physical tables.
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tables (
                 id TEXT PRIMARY KEY,
@@ -18,6 +19,24 @@ def initialize_database():
                     CHECK(status IN (
                         'available', 'occupied', 'unknown'
                     ))
+            )
+        """)
+
+        # Session 04: camera zones associated with physical tables.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS table_zones (
+                id INTEGER PRIMARY KEY,
+                table_id TEXT NOT NULL REFERENCES tables(id),
+                camera_id TEXT NOT NULL,
+                x REAL NOT NULL,
+                y REAL NOT NULL,
+                width REAL NOT NULL CHECK(width > 0),
+                height REAL NOT NULL CHECK(height > 0),
+                CHECK (
+                    x >= 0 AND y >= 0
+                    AND x + width <= 1.000001
+                    AND y + height <= 1.000001
+                )
             )
         """)
 
@@ -50,6 +69,7 @@ def read_tables():
 
         return [dict(row) for row in rows]
 
+
 def update_table_status(table_id: str, new_status: str) -> bool:
     with closing(sqlite3.connect(DB_PATH)) as conn:
         cursor = conn.execute(
@@ -59,4 +79,65 @@ def update_table_status(table_id: str, new_status: str) -> bool:
 
         conn.commit()
 
+        return cursor.rowcount == 1
+
+def read_zones():
+    # Open SQLite to retrieve zones and their physical table labels.
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        # JOIN connects each camera zone to its physical table.
+        # We use the existing label instead of storing a duplicate.
+        rows = conn.execute("""
+            SELECT
+                z.id,
+                z.table_id,
+                t.label AS label,
+                z.camera_id,
+                z.x,
+                z.y,
+                z.width,
+                z.height
+            FROM table_zones AS z
+            JOIN tables AS t ON z.table_id = t.id
+            ORDER BY z.id
+        """).fetchall()
+
+        return [dict(row) for row in rows]
+
+def create_zone(table_id, camera_id, x, y, width, height):
+    # Open our SQLite database.
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+
+        # Reject zones assigned to physical tables that don't exist.
+        conn.execute("PRAGMA foreign_keys = ON")
+
+        # Use SQL placeholders to safely insert the provided values.
+        cursor = conn.execute("""
+            INSERT INTO table_zones
+                (table_id, camera_id, x, y, width, height)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (table_id, camera_id, x, y, width, height))
+
+        # Commit because INSERT modifies the database.
+        conn.commit()
+
+        # Return the unique ID assigned to the new zone.
+        return cursor.lastrowid
+
+
+def delete_zone(zone_id: int) -> bool:
+    # Delete only this camera zone, not its physical table.
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+
+        # The placeholder safely passes the requested zone ID.
+        cursor = conn.execute(
+            "DELETE FROM table_zones WHERE id = ?",
+            (zone_id,)
+        )
+
+        # Make the deletion permanent.
+        conn.commit()
+
+        # True means a matching zone existed and was deleted.
         return cursor.rowcount == 1

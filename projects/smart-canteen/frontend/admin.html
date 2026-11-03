@@ -1,122 +1,175 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Canteen | Admin</title>
 
-  <title>Smart Canteen | Admin</title>
+    <link rel="stylesheet" href="styles.css?v=7" />
+    <script src="admin.js?v=17" defer></script>
+  </head>
 
-  <link rel="stylesheet" href="styles.css?v=6">
-  <script src="admin.js?v=10" defer></script>
-</head>
-
-<body class="admin-body">
-
-  <!-- Admin page header and navigation -->
-  <header class="admin-header">
-    <div>
-      <p class="eyebrow">Admin workspace</p>
-      <h1>Smart Canteen — Zone Editor</h1>
-      <p class="admin-subtitle">
-        Configure table zones and manage seating availability.
-      </p>
-    </div>
-
-    <nav class="admin-nav">
-      <a class="admin-link" href="/">Student dashboard</a>
-    </nav>
-  </header>
-
-  <main class="admin-main">
-
-    <!-- Table-zone configuration -->
-    <section class="admin-panel">
-      <h2>Table Zone Editor</h2>
-      <p>
-        Draw rectangular zones around tables in the reference image.
-        Zone configurations are currently saved in this browser.
-      </p>
-
-      <!-- Reference image and rectangle-drawing layer -->
-      <div class="editor-stage" id="camera-stage">
-        <img
-          src="assets/canteen-demo.png"
-          alt="Reference image of café seating"
-          class="stage-image"
-          draggable="false"
-        >
-
-        <div
-          id="zone-layer"
-          class="zone-layer"
-          aria-hidden="true">
-        </div>
+  <body class="admin-body">
+    <!-- Admin page header and navigation -->
+    <header class="admin-header">
+      <div>
+        <p class="eyebrow">Admin workspace</p>
+        <h1>Smart Canteen — Zone Editor</h1>
+        <p class="admin-subtitle">
+          Configure table zones and manage seating availability.
+        </p>
       </div>
 
-      <!-- Save a newly drawn rectangle -->
-      <button id="save-zone" type="button" disabled>
-        Save Zone
-      </button>
+      <nav class="admin-nav">
+        <a class="admin-link" href="/">
+          <span aria-hidden="true">←</span>
+          <span>Back to dashboard</span>
+        </a>
+      </nav>
+    </header>
 
-      <p id="zone-status" class="zone-status" aria-live="polite">
-        No table zones configured.
-      </p>
-    </section>
+    <main class="admin-main">
+      <!-- Table-zone configuration -->
+      <section class="admin-panel">
+        <h2>Table Zone Editor</h2>
+        <p>
+         Draw rectangular zones around tables in the reference image. Zone configurations are saved in SQLite and linked to physical tables.
+        </p>
 
-    <!-- Zone list and manual availability controls -->
-    <aside class="admin-panel">
+        <!-- Choose the type of reference footage. -->
+        <div class="source-controls">
+        <!-- Two choices are easier to understand as tabs. -->
+        <fieldset class="source-mode-group">
+          <legend>Reference source</legend>
 
-      <h2>Configured tables</h2>
-      <p>
-        Manage the table zones configured for this reference image.
-      </p>
+          <div class="source-mode-options">
+            <label class="source-mode-choice">
+              <input type="radio" name="source-mode" value="image" checked />
+              <span>Static image</span>
+            </label>
 
-      <!-- JavaScript generates this list from localStorage -->
-      <ul id="table-list" class="table-list">
-        <li class="table-list-empty">
-          No configured tables yet.
-        </li>
-      </ul>
+            <label class="source-mode-choice">
+              <input type="radio" name="source-mode" value="video" disabled />
+              <span>Recorded video</span>
+            </label>
+          </div>
+        </fieldset>
 
-      <!-- Manual table statuses are saved through FastAPI and SQLite -->
-      <section class="manual-status">
-        <h3>Manual status update</h3>
+          <!-- Show this file picker when video mode is enabled. -->
+          <div id="video-input-row" hidden>
+            <label for="video-file">Choose a recorded video</label>
+            <input
+              id="video-file"
+              type="file"
+              accept="video/mp4,video/webm"
+            />
 
-        <label for="manual-table-id">
-          Select database table
+            <!-- Capture the current video frame for table-zone editing. -->
+          <button
+            id="capture-video-frame"
+            type="button"
+            disabled
+          >
+            Capture Frame & Edit Zones
+          </button>
+          </div>
+        </div>
+                <!-- Step 1: Choose which physical table to configure. -->
+        <label for="zone-table-id">
+          1. Choose a physical table
         </label>
 
-        <!-- JavaScript loads database tables into this dropdown -->
-        <select id="manual-table-id" disabled>
+        <select id="zone-table-id" disabled>
           <option value="">Loading tables...</option>
         </select>
 
-        <label for="table-01-status">
-          New status
-        </label>
+        <!-- Step 2: Draw the table boundary. -->
+        <p class="zone-help">
+          <strong>2. Draw the table zone</strong>
+          Click and drag over the image to mark the table.
+        </p>
 
-        <select id="table-01-status">
-          <option value="available">Available</option>
-          <option value="occupied">Occupied</option>
-          <option value="unknown">Unknown</option>
-        </select>
+        <!-- Camera reference image and drawing layer. -->
+        <div class="editor-stage" id="camera-stage">
+          <img
+            src="assets/canteen-demo.png"
+            alt="Reference image of café seating"
+            class="stage-image"
+            draggable="false"
+          />
 
-        <!-- Enabled after database tables load successfully -->
-        <button id="apply-status" type="button" disabled>
-          Update selected table
+          <!-- Recorded footage uses the same editor stage. -->
+        <video
+          id="stage-video"
+          class="stage-video"
+          controls
+          playsinline
+          preload="metadata"
+          hidden
+        ></video>
+
+        <!-- A frozen video frame used for drawing table zones. -->
+        <canvas
+          id="frozen-video-frame"
+          class="frozen-video-frame"
+          aria-label="Captured video frame for table-zone editing"
+          hidden
+        ></canvas>
+          <div id="zone-layer" class="zone-layer" aria-hidden="true"></div>
+        </div>
+
+        <!-- Step 3: Save to SQLite. -->
+        <button id="save-zone" type="button" disabled>
+          3. Save Zone
         </button>
 
-        <!-- Displays loading, success and error messages -->
-        <p id="status-feedback" role="status">
-          Waiting for database tables...
+        <!-- Show drawing, saving, and error messages to the admin. -->
+        <p id="zone-status" class="zone-status" aria-live="polite">
+          No table zones configured.
         </p>
       </section>
 
-    </aside>
+      <!-- Zone list and manual availability controls -->
+      <aside class="admin-panel">
+        <h2>Configured tables</h2>
+        <p>Manage the table zones configured for this reference image.</p>
 
-  </main>
+        <!-- JavaScript generates this list from localStorage -->
+        <ul id="table-list" class="table-list">
+          <li class="table-list-empty">No configured tables yet.</li>
+        </ul>
 
-</body>
+        <!-- Manual table statuses are saved through FastAPI and SQLite -->
+        <section class="manual-status">
+          <h3>Manual status update</h3>
+
+          <label for="manual-table-id"> Select database table </label>
+
+          <!-- JavaScript loads database tables into this dropdown -->
+          <select id="manual-table-id" disabled>
+            <option value="">Loading tables...</option>
+          </select>
+
+          <label for="table-01-status"> New status </label>
+
+          <select id="table-01-status">
+            <option value="available">Available</option>
+            <option value="occupied">Occupied</option>
+            <option value="unknown">Unknown</option>
+          </select>
+
+          <!-- Enabled after database tables load successfully -->
+          <button id="apply-status" type="button" disabled>
+            Update selected table
+          </button>
+
+          <!-- Displays loading, success and error messages -->
+          <p id="status-feedback" role="status">
+            Waiting for database tables...
+          </p>
+        </section>
+      </aside>
+    </main>
+  </body>
 </html>

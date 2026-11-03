@@ -1,55 +1,45 @@
-
-'use strict';
+"use strict";
 
 /*
  * SMART CANTEEN — ADMIN PAGE
  *
- * This file currently handles TWO independent features:
- *
  * 1. Table-zone editor:
- *    Draw and save rectangles over a reference image.
- *    Storage: browser localStorage.
+ *    Draw and save table zones on images or captured video frames.
+ *    Each camera has its own zone configuration.
+ *    Storage: SQLite through FastAPI.
  *
  * 2. Manual table-status controls:
- *    Load tables from FastAPI and update their statuses.
- *    Storage: SQLite through the backend API.
+ *    Load physical tables and update their statuses.
+ *    Storage: SQLite through FastAPI.
  *
- * IMPORTANT:
- * No automatic camera occupancy detection exists yet.
+ * Automatic YOLO occupancy detection is not implemented yet.
  */
 
-
-/* ==========================================
-   PART 1 — FIND THE HTML ELEMENTS
-   ========================================== */
+/* PART 1 — PAGE ELEMENTS */
 
 // The transparent layer where we draw rectangles.
-const layer = document.getElementById('zone-layer');
+const layer = document.getElementById("zone-layer");
 
 // Displays messages about drawing and saving zones.
-const status = document.getElementById('zone-status');
+const status = document.getElementById("zone-status");
 
 // Button used to save a newly drawn zone.
-const saveButton = document.getElementById('save-zone');
+const saveButton = document.getElementById("save-zone");
 
 // List showing configured table zones.
-const tableList = document.getElementById('table-list');
+const tableList = document.getElementById("table-list");
 
+/* PART 2 — CAMERA CONFIGURATION AND ZONE STATE */
+// Each camera view has its own saved table zones.
+const IMAGE_CAMERA_ID = "CAM-01";
+const VIDEO_CAMERA_ID = "CAM-02";
 
-/* ==========================================
-   PART 2 — LOCAL ZONE DATA
-   ========================================== */
+// Start with the existing image configuration.
+// This will change when switching source modes.
+let activeCameraId = IMAGE_CAMERA_ID;
 
-// localStorage keys identify where the browser saves zones.
-// OLD_KEY is kept so older saved data can be migrated.
-const STORAGE_KEY = 'smart-canteen:demo-zones:v2';
-const OLD_KEY = 'smart-canteen:demo-zone:v1';
-
-// Load saved zones when this script starts.
-let zones = loadZones();
-
-// Calculate the next internal zone ID.
-let nextTableId = Math.max(0, ...zones.map(z => z.id)) + 1;
+// Start empty until SQLite provides the saved camera zones.
+let zones = [];
 
 // Information about an active pointer drag.
 let drag = null;
@@ -57,130 +47,81 @@ let drag = null;
 // Coordinates of a newly drawn but unsaved rectangle.
 let draftZone = null;
 
-
 /* ==========================================
-   PART 3 — VALIDATE ZONE COORDINATES
+   PART 3 — SQLITE ZONE API HELPERS
    ========================================== */
 
-/*
- * validZone()
- *
- * Checks whether an object contains valid rectangle coordinates.
- *
- * Coordinates are normalized from 0 to 1:
- * 0 = beginning of the image
- * 1 = end of the image
- *
- * Returns true for a valid rectangle, otherwise false.
- */
-function validZone(z) {
-  if (!z) return false;
+async function createZoneOnServer(tableId, rectangle) {
+  // Send the selected table and drawn rectangle to FastAPI.
+  const response = await fetch("/api/db/zones", {
+    method: "POST",
 
-  const values = [z.x, z.y, z.width, z.height];
+    headers: {
+      "Content-Type": "application/json",
+    },
 
-  return values.every(Number.isFinite) &&
-    z.x >= 0 &&
-    z.y >= 0 &&
-    z.width > 0 &&
-    z.height > 0 &&
-    z.x + z.width <= 1.000001 &&
-    z.y + z.height <= 1.000001;
-}
+    body: JSON.stringify({
+      table_id: tableId,
 
+      // Each zone belongs to a configured camera view.
+      camera_id: activeCameraId,
+      x: rectangle.x,
+      y: rectangle.y,
+      width: rectangle.width,
+      height: rectangle.height,
+    }),
+  });
 
-/* ==========================================
-   PART 4 — LOAD AND SAVE ZONES
-   ========================================== */
-
-/*
- * loadZones()
- *
- * Retrieves previously saved rectangles from localStorage.
- *
- * It also supports migrating our older single-zone format
- * into the newer multiple-zone format.
- *
- * Returns an array of saved zones.
- */
-function loadZones() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-
-    if (saved !== null) {
-      const data = JSON.parse(saved);
-
-      if (!Array.isArray(data)) {
-        throw new Error('Invalid saved zone collection');
-      }
-
-      // Ignore invalid saved records.
-      return data.filter(z =>
-        validZone(z) &&
-        Number.isInteger(z.id) &&
-        z.id > 0
-      );
-    }
-
-    // Migration: check for an old single-zone record.
-    const old = localStorage.getItem(OLD_KEY);
-
-    if (old) {
-      const zone = JSON.parse(old);
-
-      if (validZone(zone)) {
-        const migrated = [{
-          id: 1,
-          label: 'Table 01',
-          ...zone
-        }];
-
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(migrated)
-        );
-
-        return migrated;
-      }
-    }
-
-  } catch (error) {
-    console.error('Unable to load zones:', error);
+  // Don't report success if the server rejected the rectangle.
+  if (!response.ok) {
+    throw new Error(`Zone save failed: HTTP ${response.status}`);
   }
 
-  // If nothing is saved, begin with an empty array.
-  return [];
+  // FastAPI returns the saved zone, including its database ID.
+  return await response.json();
 }
 
 
-/*
- * storeZones(updated)
- *
- * Saves the provided zone array into localStorage.
- *
- * JSON.stringify converts JavaScript objects into text.
- *
- * Returns true if saving succeeds, otherwise false.
- */
-function storeZones(updated) {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(updated)
-    );
+async function loadZonesFromServer(cameraId = activeCameraId) {
+  // Request the saved zones from FastAPI.
+  const response = await fetch("/api/db/zones");
 
-    return true;
-
-  } catch (error) {
-    console.error('Unable to save zones:', error);
-    status.textContent = 'Saving failed.';
-
-    return false;
+  // Stop if the request failed.
+  if (!response.ok) {
+    throw new Error(`Zone loading failed: HTTP ${response.status}`);
   }
+
+  const data = await response.json();
+
+  // Check that the API returned an array.
+  if (!Array.isArray(data.zones)) {
+    throw new Error("Invalid zone data received");
+  }
+
+  // Return only zones belonging to the requested camera.
+  return data.zones.filter(
+    (zone) => zone.camera_id === cameraId
+  );
 }
 
+async function deleteZoneOnServer(zoneId) {
+  // Tell FastAPI which database zone should be removed.
+  // We use its unique ID so other camera zones remain untouched.
+  const response = await fetch(`/api/db/zones/${zoneId}`, {
+    method: "DELETE",
+  });
 
+  // If the zone does not exist or the server fails,
+  // don't pretend the deletion was successful.
+  if (!response.ok) {
+    throw new Error(`Zone deletion failed: HTTP ${response.status}`);
+  }
+
+  // Return FastAPI's confirmation of the deleted zone.
+  return await response.json();
+}
 /* ==========================================
-   PART 5 — POINTER COORDINATES
+   PART 4 — POINTER COORDINATES
    ========================================== */
 
 /*
@@ -198,14 +139,11 @@ function getPoint(event) {
   const bounds = layer.getBoundingClientRect();
 
   return {
-    x: Math.max(0, Math.min(1,
-      (event.clientX - bounds.left) / bounds.width)),
+    x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
 
-    y: Math.max(0, Math.min(1,
-      (event.clientY - bounds.top) / bounds.height))
+    y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
   };
 }
-
 
 /*
  * updateRectangle(element, start, end)
@@ -234,9 +172,8 @@ function updateRectangle(element, start, end) {
   return { x, y, width, height };
 }
 
-
 /* ==========================================
-   PART 6 — RENDER SAVED ZONES
+   PART 5 — RENDER SAVED ZONES
    ========================================== */
 
 /*
@@ -245,15 +182,15 @@ function updateRectangle(element, start, end) {
  * Clears the current visual rectangles and rebuilds them
  * using the saved zones array.
  *
- * This does not delete anything from localStorage.
+ * Rendering does not modify saved SQLite zones.
  */
 function renderZones() {
   layer.replaceChildren();
 
   for (const zone of zones) {
-    const element = document.createElement('div');
+    const element = document.createElement("div");
 
-    element.className = 'zone-preview zone-saved';
+    element.className = "zone-preview zone-saved";
     element.dataset.label = zone.label;
 
     updateRectangle(
@@ -261,14 +198,13 @@ function renderZones() {
       { x: zone.x, y: zone.y },
       {
         x: zone.x + zone.width,
-        y: zone.y + zone.height
-      }
+        y: zone.y + zone.height,
+      },
     );
 
     layer.appendChild(element);
   }
 }
-
 
 /*
  * renderList()
@@ -276,52 +212,67 @@ function renderZones() {
  * Builds the sidebar list of configured zones.
  *
  * Each zone receives a Delete button.
- * The delete action updates localStorage and redraws the UI.
+ * Deletion goes through FastAPI before updating the UI.
  */
 function renderList() {
   tableList.replaceChildren();
 
   if (zones.length === 0) {
-    const empty = document.createElement('li');
-    empty.textContent = 'No configured tables yet.';
+    const empty = document.createElement("li");
+    empty.textContent = "No configured tables yet.";
 
     tableList.appendChild(empty);
     return;
   }
 
   for (const zone of zones) {
-    const item = document.createElement('li');
+    const item = document.createElement("li");
 
-    const label = document.createElement('span');
+    const label = document.createElement("span");
     label.textContent = zone.label;
 
-    const removeButton = document.createElement('button');
-    removeButton.type = 'button';
-    removeButton.textContent = 'Delete';
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.textContent = "Delete";
 
-    // Remove only the selected zone.
-    removeButton.addEventListener('click', () => {
-      const updated = zones.filter(z => z.id !== zone.id);
+    // Delete a saved camera zone through FastAPI.
+    removeButton.addEventListener("click", async () => {
+      // Only database-backed records can be deleted here.
+      if (!zone.table_id) {
+        status.textContent = "This zone is missing its table ID; deletion blocked.";
+        return;
+      }
 
-      if (storeZones(updated)) {
-        zones = updated;
+      // Prevent repeated clicks while the request is running.
+      removeButton.disabled = true;
+
+      try {
+        // Delete from SQLite before removing the rectangle visually.
+        await deleteZoneOnServer(zone.id);
+
+        zones = zones.filter((saved) => saved.id !== zone.id);
         render();
 
-        status.textContent = `${zone.label} deleted.`;
+        status.textContent = `${zone.label} deleted from SQLite.`;
+      } catch (error) {
+        // Keep the rectangle if the server could not delete it.
+        removeButton.disabled = false;
+        status.textContent = `Deletion failed: ${error.message}`;
       }
     });
-
+    // Add the label and Delete button to the list item.
     item.append(label, removeButton);
+
+    // Insert the completed item into the sidebar.
     tableList.appendChild(item);
   }
 }
-
 
 /*
  * render()
  *
  * Refreshes both parts of the zone editor:
- * 1. Rectangles over the image.
+ * 1. Rectangles over the active reference image or frame.
  * 2. Configured-table sidebar.
  */
 function render() {
@@ -329,9 +280,8 @@ function render() {
   renderList();
 }
 
-
 /* ==========================================
-   PART 7 — DRAWING RECTANGLES
+   PART 6 — DRAWING RECTANGLES
    ========================================== */
 
 /*
@@ -342,14 +292,10 @@ function render() {
  *
  * Creates a new unsaved rectangle.
  */
-layer.addEventListener('pointerdown', event => {
-
+layer.addEventListener("pointerdown", (event) => {
   // Ignore another pointer while already drawing.
   // For a mouse, only accept the primary button.
-  if (
-    drag ||
-    (event.pointerType === 'mouse' && event.button !== 0)
-  ) {
+  if (drag || (event.pointerType === "mouse" && event.button !== 0)) {
     return;
   }
 
@@ -359,8 +305,8 @@ layer.addEventListener('pointerdown', event => {
   // Remove old drafts while preserving saved zones.
   renderZones();
 
-  const element = document.createElement('div');
-  element.className = 'zone-preview';
+  const element = document.createElement("div");
+  element.className = "zone-preview";
 
   layer.appendChild(element);
 
@@ -368,13 +314,12 @@ layer.addEventListener('pointerdown', event => {
   drag = {
     pointerId: event.pointerId,
     start: getPoint(event),
-    element
+    element,
   };
 
   // Continue receiving this pointer's events while dragging.
   layer.setPointerCapture(event.pointerId);
 });
-
 
 /*
  * pointermove
@@ -383,18 +328,13 @@ layer.addEventListener('pointerdown', event => {
  *
  * Updates the draft rectangle to follow the pointer.
  */
-layer.addEventListener('pointermove', event => {
+layer.addEventListener("pointermove", (event) => {
   if (!drag || event.pointerId !== drag.pointerId) {
     return;
   }
 
-  updateRectangle(
-    drag.element,
-    drag.start,
-    getPoint(event)
-  );
+  updateRectangle(drag.element, drag.start, getPoint(event));
 });
-
 
 /*
  * pointerup
@@ -406,16 +346,12 @@ layer.addEventListener('pointermove', event => {
  * Very small rectangles are rejected to prevent
  * accidental clicks from creating table zones.
  */
-layer.addEventListener('pointerup', event => {
+layer.addEventListener("pointerup", (event) => {
   if (!drag || event.pointerId !== drag.pointerId) {
     return;
   }
 
-  const zone = updateRectangle(
-    drag.element,
-    drag.start,
-    getPoint(event)
-  );
+  const zone = updateRectangle(drag.element, drag.start, getPoint(event));
 
   // Reject rectangles smaller than 2% in either dimension.
   if (zone.width < 0.02 || zone.height < 0.02) {
@@ -424,18 +360,16 @@ layer.addEventListener('pointerup', event => {
     draftZone = null;
     saveButton.disabled = true;
 
-    status.textContent = 'Zone too small. Try again.';
-
+    status.textContent = "Zone too small. Try again.";
   } else {
     draftZone = zone;
     saveButton.disabled = false;
 
-    status.textContent = 'New zone ready. Click Save Zone.';
+    status.textContent = "New zone ready. Click Save Zone.";
   }
 
   drag = null;
 });
-
 
 /*
  * pointercancel
@@ -443,7 +377,7 @@ layer.addEventListener('pointerup', event => {
  * Cancels the current draft if the browser interrupts
  * the pointer interaction.
  */
-layer.addEventListener('pointercancel', event => {
+layer.addEventListener("pointercancel", (event) => {
   if (!drag || event.pointerId !== drag.pointerId) {
     return;
   }
@@ -454,92 +388,107 @@ layer.addEventListener('pointercancel', event => {
   draftZone = null;
   saveButton.disabled = true;
 
-  status.textContent = 'Drawing cancelled.';
+  status.textContent = "Drawing cancelled.";
 });
 
 
 /* ==========================================
-   PART 8 — TABLE LABEL GENERATION
+   PART 7 — SAVE ZONES TO SQLITE
    ========================================== */
 
-/*
- * nextAvailableTableNumber()
- *
- * Finds the smallest unused display number.
- *
- * Example:
- * Existing labels: Table 01, Table 02, Table 04
- * Result: 3
- *
- * Display labels are different from internal IDs.
- */
-function nextAvailableTableNumber() {
-  const usedLabels = new Set(
-    zones.map(zone => zone.label)
-  );
-
-  let number = 1;
-
-  while (
-    usedLabels.has(
-      `Table ${String(number).padStart(2, '0')}`
-    )
-  ) {
-    number++;
-  }
-
-  return number;
-}
-
-
-/* ==========================================
-   PART 9 — SAVE NEW RECTANGLES
-   ========================================== */
-
-/*
- * Save Zone button
- *
- * Converts the current draft into a saved zone.
- *
- * The new zone receives:
- * - An internal numeric ID.
- * - A visible table label.
- * - Normalized rectangle coordinates.
- */
-saveButton.addEventListener('click', () => {
+saveButton.addEventListener("click", async () => {
+  // Nothing to save if the user has not drawn a rectangle.
   if (!draftZone) return;
 
-  const id = nextTableId;
+  // Every camera zone must belong to a real physical table.
+  const tableId = zoneTableSelect.value;
 
-  const newZone = {
-    id,
-    label: `Table ${String(nextAvailableTableNumber()).padStart(2, '0')}`,
-    ...draftZone
-  };
+  if (!tableId) {
+    status.textContent = "Choose a physical table before saving.";
+    return;
+  }
 
-  const updated = [...zones, newZone];
+  saveButton.disabled = true;
+  let saved = false;
 
-  if (storeZones(updated)) {
-    zones = updated;
-    nextTableId++;
+  try {
+    // Ask FastAPI to save the rectangle in SQLite.
+    await createZoneOnServer(tableId, draftZone);
+    saved = true;
 
+    // The rectangle is now saved, so clear the draft.
     draftZone = null;
-    saveButton.disabled = true;
 
+    // Reload database records to get SQLite-generated zone IDs.
+    zones = await loadZonesFromServer();
     render();
 
-    status.textContent = `${newZone.label} saved!`;
+    status.textContent = "Zone saved to SQLite!";
+  } catch (error) {
+    if (saved) {
+      status.textContent = "Saved, but reload failed. Refresh before saving again.";
+    } else {
+      saveButton.disabled = false;
+      status.textContent = `Save failed: ${error.message}`;
+    }
   }
 });
 
 
-// Display the zones already saved in this browser.
-render();
-status.textContent = `${zones.length} saved table zone(s) loaded.`;
+/* ==========================================
+   PART 8 — LOAD CAMERA ZONES
+   ========================================== */
 
+// Track which zone-loading request is the newest.
+let latestZoneLoad = 0;
+
+async function initializeZones() {
+  // Each request gets its own number and camera ID.
+  const requestId = ++latestZoneLoad;
+  const requestedCameraId = activeCameraId;
+
+  status.textContent =
+    `Loading zones for ${requestedCameraId}...`;
+
+  // Clear previously displayed zones before loading another camera.
+  zones = [];
+  draftZone = null;
+  saveButton.disabled = true;
+  render();
+
+  try {
+    const loadedZones = await loadZonesFromServer(requestedCameraId);
+
+    // Ignore outdated responses after switching cameras.
+    if (
+      requestId !== latestZoneLoad ||
+      requestedCameraId !== activeCameraId
+    ) {
+      return;
+    }
+
+    zones = loadedZones;
+    render();
+
+    status.textContent =
+      `${zones.length} saved zone(s) loaded for ${requestedCameraId}.`;
+
+  } catch (error) {
+    // An older failed request must not overwrite the current status.
+    if (requestId !== latestZoneLoad) return;
+
+    status.textContent =
+      `Could not load zones: ${error.message}`;
+
+    console.error("Zone loading failed:", error);
+  }
+}
+
+// Load saved zones when the admin page starts.
+initializeZones();
 
 /* ==========================================
-   PART 10 — MANUAL STATUS CONTROLS
+   PART 9 — MANUAL STATUS CONTROLS
    ========================================== */
 
 /*
@@ -550,25 +499,26 @@ status.textContent = `${zones.length} saved table zone(s) loaded.`;
  */
 
 // Dropdown containing database table IDs.
-const manualTableSelect = document.getElementById('manual-table-id');
+const manualTableSelect = document.getElementById("manual-table-id");
+
+// The zone editor uses this to link rectangles to physical tables.
+const zoneTableSelect = document.getElementById("zone-table-id");
 
 // Dropdown containing the desired availability status.
-const manualStatusSelect = document.getElementById('table-01-status');
+const manualStatusSelect = document.getElementById("table-01-status");
 
 // Button that sends the status update.
-const applyStatusButton = document.getElementById('apply-status');
+const applyStatusButton = document.getElementById("apply-status");
 
 // Displays messages about API requests and results.
-const statusFeedback = document.getElementById('status-feedback');
-
+const statusFeedback = document.getElementById("status-feedback");
 
 // Keep controls disabled until the database tables load.
 manualTableSelect.disabled = true;
 applyStatusButton.disabled = true;
 
-
 /* ==========================================
-   PART 11 — LOAD TABLES FROM FASTAPI
+   PART 10 — LOAD TABLES FROM FASTAPI
    ========================================== */
 
 /*
@@ -583,29 +533,37 @@ applyStatusButton.disabled = true;
  * 5. Enable the controls only after loading succeeds.
  */
 function loadDatabaseTables() {
-  statusFeedback.textContent = 'Loading database tables...';
+  statusFeedback.textContent = "Loading database tables...";
 
-  fetch('/api/db/tables')
-    .then(response => {
+  fetch("/api/db/tables")
+    .then((response) => {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
       return response.json();
     })
-    .then(data => {
-
+    .then((data) => {
       // The API should return an array of table objects.
       if (!Array.isArray(data.tables) || data.tables.length === 0) {
-        throw new Error('No database tables received');
+        throw new Error("No database tables received");
       }
 
       // Clear the previous dropdown options.
       manualTableSelect.replaceChildren();
 
+      // Clear old options and provide an empty initial selection.
+      zoneTableSelect.replaceChildren();
+
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Choose a physical table";
+
+      zoneTableSelect.appendChild(placeholder);
+
       // Create one option for each database table.
       for (const table of data.tables) {
-        const option = document.createElement('option');
+        const option = document.createElement("option");
 
         // Internal database identifier, e.g. T-03.
         option.value = table.id;
@@ -614,30 +572,33 @@ function loadDatabaseTables() {
         option.textContent = table.label;
 
         manualTableSelect.appendChild(option);
+        // Copy the option because one HTML element cannot belong
+        // to two dropdowns at the same time.
+        zoneTableSelect.appendChild(option.cloneNode(true));
       }
 
       // Now the operator can select a table and update it.
       manualTableSelect.disabled = false;
       applyStatusButton.disabled = false;
+      zoneTableSelect.disabled = false;
 
-      statusFeedback.textContent =
-        `${data.tables.length} database tables loaded.`;
+      statusFeedback.textContent = `${data.tables.length} database tables loaded.`;
     })
-    .catch(error => {
-      console.error('Could not load database tables:', error);
+    .catch((error) => {
+      console.error("Could not load database tables:", error);
 
       // Don't allow updates when table loading fails.
       manualTableSelect.disabled = true;
       applyStatusButton.disabled = true;
+      // Don't allow zone assignment if table loading fails.
+      zoneTableSelect.disabled = true;
 
-      statusFeedback.textContent =
-        'Could not load database tables.';
+      statusFeedback.textContent = "Could not load database tables.";
     });
 }
 
-
 /* ==========================================
-   PART 12 — UPDATE A TABLE THROUGH FASTAPI
+   PART 11 — UPDATE A TABLE THROUGH FASTAPI
    ========================================== */
 
 /*
@@ -651,8 +612,7 @@ function loadDatabaseTables() {
  * FastAPI validates the request.
  * SQLite stores the updated status.
  */
-applyStatusButton.addEventListener('click', () => {
-
+applyStatusButton.addEventListener("click", () => {
   // Example: T-03.
   const tableId = manualTableSelect.value;
 
@@ -661,7 +621,7 @@ applyStatusButton.addEventListener('click', () => {
 
   // Don't send a request if no database table is selected.
   if (!tableId) {
-    statusFeedback.textContent = 'Please select a table.';
+    statusFeedback.textContent = "Please select a table.";
     return;
   }
 
@@ -670,23 +630,22 @@ applyStatusButton.addEventListener('click', () => {
   manualTableSelect.disabled = true;
   manualStatusSelect.disabled = true;
 
-  statusFeedback.textContent = 'Saving...';
+  statusFeedback.textContent = "Saving...";
 
   // Send the status change to our existing FastAPI endpoint.
   fetch(`/api/db/tables/${encodeURIComponent(tableId)}/status`, {
-    method: 'PATCH',
+    method: "PATCH",
 
     headers: {
-      'Content-Type': 'application/json'
+      "Content-Type": "application/json",
     },
 
     body: JSON.stringify({
-      status: selectedStatus
-    })
+      status: selectedStatus,
+    }),
   })
-
     // Check whether FastAPI accepted the request.
-    .then(response => {
+    .then((response) => {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -695,17 +654,15 @@ applyStatusButton.addEventListener('click', () => {
     })
 
     // Display the saved status returned by FastAPI.
-    .then(data => {
-      statusFeedback.textContent =
-        `${tableId} saved as ${data.status}.`;
+    .then((data) => {
+      statusFeedback.textContent = `${tableId} saved as ${data.status}.`;
     })
 
     // Display errors instead of falsely claiming success.
-    .catch(error => {
-      console.error('Status update failed:', error);
+    .catch((error) => {
+      console.error("Status update failed:", error);
 
-      statusFeedback.textContent =
-        `Could not save status (${error.message}).`;
+      statusFeedback.textContent = `Could not save status (${error.message}).`;
     })
 
     // Restore the controls after success or failure.
@@ -716,10 +673,168 @@ applyStatusButton.addEventListener('click', () => {
     });
 });
 
-
 /* ==========================================
-   PART 13 — INITIALIZE ADMIN DATABASE UI
+   PART 12 — INITIALIZE ADMIN DATABASE UI
    ========================================== */
 
 // Start loading the real database tables when this page loads.
 loadDatabaseTables();
+
+
+/* ==========================================
+   PART 13 — SWITCH REFERENCE SOURCES
+   ========================================== */
+
+// Controls for choosing the reference source.
+const sourceRadios = document.querySelectorAll(
+  'input[name="source-mode"]'
+);
+
+const stageImage = document.querySelector(".stage-image");
+const stageVideo = document.getElementById("stage-video");
+const videoInputRow = document.getElementById("video-input-row");
+const videoFile = document.getElementById("video-file");
+
+// The frozen frame and its capture button.
+const frozenFrame = document.getElementById("frozen-video-frame");
+const captureButton = document.getElementById("capture-video-frame");
+
+let videoUrl = null;
+
+// Switch the visible reference source without changing SQLite.
+function switchSource(mode) {
+  const showingVideo = mode === "video";
+
+  // Select the configuration belonging to this source.
+  activeCameraId = showingVideo
+    ? VIDEO_CAMERA_ID
+    : IMAGE_CAMERA_ID;
+
+  // Hide editing instructions during video preview.
+  document.body.classList.toggle("video-preview", showingVideo);
+
+  stageImage.hidden = showingVideo;
+  stageVideo.hidden = !showingVideo;
+  videoInputRow.hidden = !showingVideo;
+  frozenFrame.hidden = true;
+
+  // Hide editing controls during playback; enable them after capture.
+  layer.hidden = showingVideo;
+  tableList.hidden = showingVideo;
+  tableList.style.display = showingVideo ? "none" : "";
+
+  draftZone = null;
+  saveButton.disabled = true;
+
+  if (showingVideo) {
+    status.textContent =
+      "Choose a recording to preview. Existing image zones are protected.";
+  } else {
+    stageVideo.pause();
+  }
+
+  // Reload zones for the newly selected camera.
+  initializeZones();
+}
+
+// Enable video mode now that its behavior is implemented.
+document.querySelector(
+  'input[name="source-mode"][value="video"]'
+).disabled = false;
+
+// React when the user switches between image and video.
+for (const radio of sourceRadios) {
+  radio.addEventListener("change", () => {
+    if (radio.checked) switchSource(radio.value);
+  });
+}
+
+// Preview a locally selected recording.
+videoFile.addEventListener("change", () => {
+  const file = videoFile.files[0];
+  if (!file) return;
+
+  // Disable capture while a new recording loads.
+  captureButton.disabled = true;
+  frozenFrame.hidden = true;
+  stageVideo.hidden = false;
+  if (videoUrl) URL.revokeObjectURL(videoUrl);
+
+  videoUrl = URL.createObjectURL(file);
+  stageVideo.src = videoUrl;
+  stageVideo.load();
+
+  status.textContent =
+    "Recording loaded. Use the video controls to play or pause.";
+});
+
+// Always start with the static-image editor after a page reload.
+window.addEventListener("pageshow", () => {
+  const imageRadio = document.querySelector(
+    'input[name="source-mode"][value="image"]'
+  );
+
+  imageRadio.checked = true;
+  switchSource("image");
+});
+
+/* ==========================================
+   PART 14 — CAPTURE FRAMES FOR EDITING
+   ========================================== */
+
+// Allow capturing once Firefox has decoded a video frame.
+stageVideo.addEventListener("loadeddata", () => {
+  captureButton.disabled = false;
+});
+
+// Copy the current video frame into the canvas.
+captureButton.addEventListener("click", () => {
+  if (stageVideo.readyState < 2) {
+    status.textContent = "Video frame is not ready yet.";
+    return;
+  }
+
+  // Freeze playback at the current frame.
+  stageVideo.pause();
+
+  // Match the canvas resolution to the video.
+  frozenFrame.width = stageVideo.videoWidth;
+  frozenFrame.height = stageVideo.videoHeight;
+
+  // Get the canvas drawing interface.
+  const context = frozenFrame.getContext("2d");
+
+  if (!context) {
+    status.textContent = "Could not initialize the canvas.";
+    return;
+  }
+
+  // Copy the video frame into the canvas.
+  context.drawImage(
+    stageVideo,
+    0,
+    0,
+    frozenFrame.width,
+    frozenFrame.height
+  );
+
+  // Replace the player with the captured image.
+  stageVideo.hidden = true;
+  frozenFrame.hidden = false;
+
+  // Enable zone editing over the frozen video frame.
+  document.body.classList.remove("video-preview");
+
+  // Show the rectangle drawing layer.
+  layer.hidden = false;
+
+  // Show this camera's saved table-zone list.
+  tableList.hidden = false;
+  tableList.style.display = "";
+
+  // Display the zones belonging to the video camera.
+  render();
+
+  status.textContent =
+    "Frame captured. Select a table, draw a zone, then save it.";
+});
