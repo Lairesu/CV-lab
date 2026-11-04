@@ -40,6 +40,32 @@ def initialize_database():
             )
         """)
 
+        # Session 06: latest computer-vision observation for each
+        # physical table as seen by a particular camera.
+        # Separate from the administrator's manual status.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS vision_observations (
+                camera_id TEXT NOT NULL,
+                table_id TEXT NOT NULL REFERENCES tables(id),
+
+                observation TEXT NOT NULL
+                    CHECK(observation IN (
+                        'person_detected',
+                        'no_person_detected',
+                        'unknown'
+                    )),
+
+                people_detected INTEGER NOT NULL DEFAULT 0
+                    CHECK(people_detected >= 0),
+
+                source TEXT NOT NULL DEFAULT 'recorded_video_demo',
+                observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                PRIMARY KEY (camera_id, table_id)
+            )
+        """)
+
+
         # Initial demonstration records only.
         demo_tables = [
             ("T-01", "demo-cafe", "Table 01", "Terrace", 4),
@@ -141,3 +167,60 @@ def delete_zone(zone_id: int) -> bool:
 
         # True means a matching zone existed and was deleted.
         return cursor.rowcount == 1
+
+
+
+def save_vision_observation(
+    camera_id, table_id, observation, people_detected
+):
+    """Save the latest observation without changing manual status."""
+
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+
+        # Only accept a table configured for this camera.
+        existing_zone = conn.execute("""
+            SELECT 1 FROM table_zones
+            WHERE camera_id = ? AND table_id = ?
+            LIMIT 1
+        """, (camera_id, table_id)).fetchone()
+
+        if existing_zone is None:
+            return False
+
+        conn.execute("""
+            INSERT INTO vision_observations
+                (camera_id, table_id, observation, people_detected)
+            VALUES (?, ?, ?, ?)
+
+            ON CONFLICT(camera_id, table_id)
+            DO UPDATE SET
+                observation = excluded.observation,
+                people_detected = excluded.people_detected,
+                observed_at = CURRENT_TIMESTAMP
+        """, (
+            camera_id, table_id, observation, people_detected
+        ))
+
+        conn.commit()
+        return True
+
+
+def read_vision_observations():
+    """Return the most recent observation for each camera/table."""
+
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        conn.row_factory = sqlite3.Row
+
+        rows = conn.execute("""
+            SELECT
+                camera_id,
+                table_id,
+                observation,
+                people_detected,
+                source,
+                observed_at
+            FROM vision_observations
+            ORDER BY camera_id, table_id
+        """).fetchall()
+
+        return [dict(row) for row in rows]

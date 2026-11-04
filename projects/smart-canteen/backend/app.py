@@ -8,6 +8,10 @@ from contextlib import asynccontextmanager
 from database import initialize_database, read_tables, read_zones
 from database import delete_zone
 from fastapi import FastAPI
+from database import (
+    save_vision_observation,
+    read_vision_observations,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -168,4 +172,66 @@ def remove_database_zone(zone_id: int):
     return {
         "id": zone_id,
         "deleted": True
+    }
+
+
+# Session 06: computer-vision observation API.
+# Observations are separate from manual table statuses.
+
+class VisionObservationCreate(BaseModel):
+    camera_id: str = Field(min_length=1, max_length=64)
+    table_id: str = Field(min_length=1, max_length=64)
+
+    observation: Literal[
+        "person_detected",
+        "no_person_detected",
+        "unknown"
+    ]
+
+    people_detected: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def check_detection_count(self):
+        if self.observation == "person_detected":
+            if self.people_detected == 0:
+                raise ValueError(
+                    "person_detected requires at least one person"
+                )
+        elif self.people_detected != 0:
+            raise ValueError(
+                "Other observations must have zero people"
+            )
+
+        return self
+
+
+@app.get("/api/db/vision-observations")
+def get_vision_observations():
+    return {
+        "data_source": "sqlite",
+        "observations": read_vision_observations()
+    }
+
+
+@app.post("/internal/vision/observations", status_code=201)
+def create_vision_observation(payload: VisionObservationCreate):
+    saved = save_vision_observation(
+        payload.camera_id,
+        payload.table_id,
+        payload.observation,
+        payload.people_detected,
+    )
+
+    if not saved:
+        raise HTTPException(
+            status_code=404,
+            detail="No zone configured for this camera and table"
+        )
+
+    return {
+        "camera_id": payload.camera_id,
+        "table_id": payload.table_id,
+        "observation": payload.observation,
+        "people_detected": payload.people_detected,
+        "saved": True
     }

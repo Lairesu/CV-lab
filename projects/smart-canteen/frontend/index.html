@@ -6,73 +6,65 @@
     <meta name="theme-color" content="#111c20" />
     <meta
       name="description"
-      content="Smart Canteen student seating availability — sample dashboard for the case competition."
+      content="Smart Canteen seating availability prototype. View manually updated demo table statuses stored in SQLite."
     />
-    <title>Smart Canteen | Sample Dashboard</title>
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <title>Smart Canteen | Seating Availability Prototype</title>
+    <link rel="stylesheet" href="styles.css?v=7" />
+    <!-- Still needed by app.js for demo venue metadata. -->
     <script defer src="sample-data.js"></script>
-    <script src="app.js?v=3" defer></script>
+    <script defer src="app.js?v=4"></script>
+    <script defer src="vision-observations.js?v=1"></script>
   </head>
   <body>
     <div class="page-shell">
       <header class="topbar">
         <a class="brand" href="/" aria-label="Smart Canteen home">
-          <span class="brand-mark" aria-hidden="true"
-            ><svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <rect
-                x="4"
-                y="5"
-                width="16"
-                height="11"
-                rx="3"
-                stroke="currentColor"
-                stroke-width="1.8"
-              />
-              <path
-                d="M8 16v4M16 16v4M8 3v2M16 3v2"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-              /></svg
-          ></span>
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <rect x="4" y="5" width="16" height="11" rx="3" stroke="currentColor" stroke-width="1.8" />
+              <path d="M8 16v4M16 16v4M8 3v2M16 3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </span>
           <span>Smart<span class="brand-accent">Canteen</span></span>
         </a>
-        <span class="topbar-label"
-          >Student preview
-          <span class="tiny-dot" aria-hidden="true"></span> Session 02</span
-        >
+        <span class="topbar-label">
+          Student dashboard <span class="tiny-dot" aria-hidden="true"></span> Prototype
+        </span>
       </header>
 
       <main>
-        <section class="demo-banner" role="note" aria-label="Demo notice">
+        <section class="demo-banner" role="note" aria-label="Prototype data notice">
           <span class="demo-icon" aria-hidden="true">✦</span>
           <div>
-            <strong>DEMO MODE · SAMPLE DATA ONLY</strong
-            ><span
-              >No camera, AI feed, or real occupancy data is connected.</span
-            >
+            <strong>PROTOTYPE · MANUALLY UPDATED DEMO STATUSES</strong>
+            <span>
+              Table statuses are stored in SQLite and checked for updates every five seconds.
+              Camera-based occupancy updates are not connected to this dashboard yet.
+            </span>
           </div>
         </section>
 
         <section class="intro" aria-labelledby="page-title">
           <div>
-            <p class="eyebrow">SPACE AVAILABILITY / DEMONSTRATION</p>
+            <p class="eyebrow">SEATING AVAILABILITY / PROTOTYPE</p>
             <h1 id="page-title">
               Find your seat.<br /><em>Skip the search.</em>
             </h1>
             <p class="intro-description">
-              A quick view of available tables before you head over. Designed
-              for campus canteens today—and other shared spaces tomorrow.
+              Explore table availability in a demonstration venue. Smart Canteen is
+              designed for campus canteens first, with potential for other shared spaces.
             </p>
           </div>
           <div class="intro-art" aria-hidden="true">
-            <span class="art-table"></span><span class="art-chair c1"></span
-            ><span class="art-chair c2"></span><span class="art-chair c3"></span
-            ><span class="art-chair c4"></span>
+            <span class="art-table"></span>
+            <span class="art-chair c1"></span>
+            <span class="art-chair c2"></span>
+            <span class="art-chair c3"></span>
+            <span class="art-chair c4"></span>
           </div>
         </section>
 
-        <section class="venue-card" aria-label="Current venue">
+        <section class="venue-card" aria-label="Current demonstration venue">
           <div class="venue-symbol" aria-hidden="true">⌂</div>
           <div class="venue-info">
             <p class="eyebrow">SELECTED VENUE · DEMO</p>
@@ -88,7 +80,7 @@
               <p class="eyebrow">AT A GLANCE</p>
               <h2 id="overview-heading">Table availability</h2>
             </div>
-            <span class="snapshot-label">Illustrative snapshot · Not live</span>
+            <span class="snapshot-label">Demo database · Refreshes every 5 seconds</span>
           </div>
           <div class="stat-grid">
             <article class="stat-card available">
@@ -107,23 +99,20 @@
               <div class="stat-label">Unknown / review</div>
             </article>
           </div>
-          <div
-            class="distribution"
-            aria-label="Sample table availability breakdown"
-          >
+          <div class="distribution" aria-label="Demo table status breakdown">
             <div class="distribution-heading">
-              <span>Example availability mix</span
-              ><strong id="total-tables">— tables</strong>
+              <span>Current demo status mix</span>
+              <strong id="total-tables">— tables</strong>
             </div>
             <div
               class="distribution-track"
               id="distribution-track"
               role="img"
-              aria-label="Loading example counts"
+              aria-label="Loading table status counts"
             ></div>
             <p>
-              Counts represent tables,
-              <strong>not individually available seats</strong>.
+              Counts represent tables, <strong>not individual available seats</strong>.
+              Demo statuses do not represent verified live occupancy.
             </p>
           </div>
         </section>
@@ -136,41 +125,17 @@
             </div>
             <span class="small-label" id="table-count-label"></span>
           </div>
-          <div
-            class="filter-bar"
-            role="group"
-            aria-label="Filter example tables"
-          >
-            <button
-              type="button"
-              class="filter-chip active"
-              data-filter="all"
-              aria-pressed="true"
-            >
+          <div class="filter-bar" role="group" aria-label="Filter tables by status">
+            <button type="button" class="filter-chip active" data-filter="all" aria-pressed="true">
               All tables
             </button>
-            <button
-              type="button"
-              class="filter-chip"
-              data-filter="available"
-              aria-pressed="false"
-            >
+            <button type="button" class="filter-chip" data-filter="available" aria-pressed="false">
               Available
             </button>
-            <button
-              type="button"
-              class="filter-chip"
-              data-filter="occupied"
-              aria-pressed="false"
-            >
+            <button type="button" class="filter-chip" data-filter="occupied" aria-pressed="false">
               Occupied
             </button>
-            <button
-              type="button"
-              class="filter-chip"
-              data-filter="unknown"
-              aria-pressed="false"
-            >
+            <button type="button" class="filter-chip" data-filter="unknown" aria-pressed="false">
               Unknown
             </button>
           </div>
@@ -180,20 +145,45 @@
         <section class="explain-card" aria-labelledby="how-it-works-title">
           <div class="explain-icon" aria-hidden="true">i</div>
           <div>
-            <h2 id="how-it-works-title">What happens next?</h2>
+            <h2 id="how-it-works-title">How does this prototype work?</h2>
             <p>
-              In future sessions, a permitted fixed-camera feed will be
-              processed by YOLO and an occupancy algorithm. Only estimated table
-              statuses—not CCTV footage—will appear here.
-              <strong>Unknown</strong> means a table cannot be assessed
-              reliably.
+              An administrator currently sets table statuses manually. FastAPI saves
+              those updates in SQLite, and this page checks for changes every five
+              seconds. Separately, the admin editor saves camera table zones in SQLite,
+              and YOLO has been tested on recorded video and sample person detections.
+              Automatic occupancy decisions have <strong>not</strong> been connected to
+              this dashboard. <strong>Unknown</strong> means availability has not been
+              verified.
+            </p>
+          </div>
+        </section>
+
+        <section class="explain-card" aria-labelledby="vision-heading">
+          <div class="explain-icon" aria-hidden="true">◉</div>
+          <div>
+            <p class="eyebrow">COMPUTER VISION / EXPERIMENTAL</p>
+            <h2 id="vision-heading">Camera analysis</h2>
+
+            <p>
+              These are saved observations from a recorded-video
+              experiment, not live seating availability.
+              A detected person does not necessarily mean a table
+              is occupied, and no detection does not prove it is free.
+            </p>
+
+            <ul id="vision-observation-list">
+              <li>Loading camera observations…</li>
+            </ul>
+
+            <p id="vision-observation-sync">
+              Waiting for the vision API…
             </p>
           </div>
         </section>
       </main>
       <footer class="footer">
-        <span>Smart Canteen · Case competition MVP</span
-        ><span>Demo data only · Privacy-first by design</span>
+        <span>Smart Canteen · Case competition prototype</span>
+        <span>Demonstration only · Not verified live occupancy</span>
       </footer>
     </div>
   </body>
