@@ -12,13 +12,14 @@ services:
 
     environment:
       HOME: /tmp
+      SMART_CANTEEN_WORKER_KEY: ${SMART_CANTEEN_WORKER_KEY:?Worker key missing}
 
     user: "${LOCAL_UID}:${LOCAL_GID}"
 
     stdin_open: true
     tty: true
 
-    command: sleep infinity
+    command: python -u /workspace/projects/canteen-vision/analysis_worker.py
 
     ports:
       - "127.0.0.1:8098:8098"

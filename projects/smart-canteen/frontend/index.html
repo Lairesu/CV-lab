@@ -6,14 +6,14 @@
     <meta name="theme-color" content="#111c20" />
     <meta
       name="description"
-      content="Smart Canteen seating availability prototype. View manually updated demo table statuses stored in SQLite."
+      content="Smart Canteen seating availability prototype. Table statuses from staff updates and camera estimates."
     />
     <title>Smart Canteen | Seating Availability Prototype</title>
-    <link rel="stylesheet" href="styles.css?v=7" />
-    <!-- Still needed by app.js for demo venue metadata. -->
+    <link rel="stylesheet" href="styles.css?v=12" />
     <script defer src="sample-data.js"></script>
-    <script defer src="app.js?v=4"></script>
+    <script defer src="app.js?v=6"></script>
     <script defer src="vision-observations.js?v=1"></script>
+    <script defer src="addons.js?v=1"></script>
   </head>
   <body>
     <div class="page-shell">
@@ -21,38 +21,39 @@
         <a class="brand" href="/" aria-label="Smart Canteen home">
           <span class="brand-mark" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <rect x="4" y="5" width="16" height="11" rx="3" stroke="currentColor" stroke-width="1.8" />
-              <path d="M8 16v4M16 16v4M8 3v2M16 3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <rect
+                x="4"
+                y="5"
+                width="16"
+                height="11"
+                rx="3"
+                stroke="currentColor"
+                stroke-width="1.8"
+              />
+              <path
+                d="M8 16v4M16 16v4M8 3v2M16 3v2"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
             </svg>
           </span>
           <span>Smart<span class="brand-accent">Canteen</span></span>
         </a>
         <span class="topbar-label">
-          Student dashboard <span class="tiny-dot" aria-hidden="true"></span> Prototype
+          Student dashboard
+          <span class="tiny-dot" aria-hidden="true"></span> Prototype
         </span>
       </header>
 
       <main>
-        <section class="demo-banner" role="note" aria-label="Prototype data notice">
-          <span class="demo-icon" aria-hidden="true">✦</span>
-          <div>
-            <strong>PROTOTYPE · MANUALLY UPDATED DEMO STATUSES</strong>
-            <span>
-              Table statuses are stored in SQLite and checked for updates every five seconds.
-              Camera-based occupancy updates are not connected to this dashboard yet.
-            </span>
-          </div>
-        </section>
-
         <section class="intro" aria-labelledby="page-title">
           <div>
-            <p class="eyebrow">SEATING AVAILABILITY / PROTOTYPE</p>
             <h1 id="page-title">
               Find your seat.<br /><em>Skip the search.</em>
             </h1>
             <p class="intro-description">
-              Explore table availability in a demonstration venue. Smart Canteen is
-              designed for campus canteens first, with potential for other shared spaces.
+              Check which tables are free before you walk in.
             </p>
           </div>
           <div class="intro-art" aria-hidden="true">
@@ -64,44 +65,36 @@
           </div>
         </section>
 
-        <section class="venue-card" aria-label="Current demonstration venue">
-          <div class="venue-symbol" aria-hidden="true">⌂</div>
-          <div class="venue-info">
-            <p class="eyebrow">SELECTED VENUE · DEMO</p>
-            <h2 id="venue-name">Loading venue…</h2>
-            <p id="venue-description"></p>
-          </div>
-          <span class="venue-chip" id="venue-type">Canteen</span>
-        </section>
-
         <section class="overview" aria-labelledby="overview-heading">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">AT A GLANCE</p>
+              <p class="eyebrow">RIGHT NOW</p>
               <h2 id="overview-heading">Table availability</h2>
             </div>
-            <span class="snapshot-label">Demo database · Refreshes every 5 seconds</span>
+            <span class="live-badge" id="last-updated">
+              <span class="live-dot" aria-hidden="true"></span>Connecting…
+            </span>
           </div>
           <div class="stat-grid">
             <article class="stat-card available">
               <div class="stat-icon" aria-hidden="true">✓</div>
               <div class="stat-value" id="available-count">—</div>
-              <div class="stat-label">Available tables</div>
+              <div class="stat-label">Available</div>
             </article>
             <article class="stat-card occupied">
               <div class="stat-icon" aria-hidden="true">●</div>
               <div class="stat-value" id="occupied-count">—</div>
-              <div class="stat-label">Occupied tables</div>
+              <div class="stat-label">Occupied</div>
             </article>
             <article class="stat-card unknown">
               <div class="stat-icon" aria-hidden="true">?</div>
               <div class="stat-value" id="unknown-count">—</div>
-              <div class="stat-label">Unknown / review</div>
+              <div class="stat-label">Unknown — check in person</div>
             </article>
           </div>
-          <div class="distribution" aria-label="Demo table status breakdown">
+          <div class="distribution" aria-label="Table status breakdown">
             <div class="distribution-heading">
-              <span>Current demo status mix</span>
+              <span>Status mix</span>
               <strong id="total-tables">— tables</strong>
             </div>
             <div
@@ -110,76 +103,179 @@
               role="img"
               aria-label="Loading table status counts"
             ></div>
-            <p>
-              Counts represent tables, <strong>not individual available seats</strong>.
-              Demo statuses do not represent verified live occupancy.
-            </p>
           </div>
         </section>
 
         <section class="tables-section" aria-labelledby="tables-heading">
           <div class="section-heading tables-header">
             <div>
-              <p class="eyebrow">EXPLORE SEATING</p>
-              <h2 id="tables-heading">Tables by status</h2>
+              <p class="eyebrow">TABLES</p>
+              <h2 id="tables-heading">Pick a table</h2>
             </div>
             <span class="small-label" id="table-count-label"></span>
           </div>
-          <div class="filter-bar" role="group" aria-label="Filter tables by status">
-            <button type="button" class="filter-chip active" data-filter="all" aria-pressed="true">
+          <div
+            class="filter-bar"
+            role="group"
+            aria-label="Filter tables by status"
+          >
+            <button
+              type="button"
+              class="filter-chip active"
+              data-filter="all"
+              aria-pressed="true"
+            >
               All tables
             </button>
-            <button type="button" class="filter-chip" data-filter="available" aria-pressed="false">
-              Available
+            <button
+              type="button"
+              class="filter-chip"
+              data-filter="available"
+              aria-pressed="false"
+            >
+              ✓ Available
             </button>
-            <button type="button" class="filter-chip" data-filter="occupied" aria-pressed="false">
-              Occupied
+            <button
+              type="button"
+              class="filter-chip"
+              data-filter="occupied"
+              aria-pressed="false"
+            >
+              ● Occupied
             </button>
-            <button type="button" class="filter-chip" data-filter="unknown" aria-pressed="false">
-              Unknown
+            <button
+              type="button"
+              class="filter-chip"
+              data-filter="unknown"
+              aria-pressed="false"
+            >
+              ? Unknown
             </button>
           </div>
           <div class="table-grid" id="table-grid" aria-live="polite"></div>
         </section>
 
+        <section class="addons" aria-labelledby="addons-heading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">COMING SOON</p>
+              <h2 id="addons-heading">Canteen add-ons</h2>
+            </div>
+            <span class="preview-tag">Preview · sample data</span>
+          </div>
+          <p class="addons-note">
+            Ideas for future versions. These cards use sample data and are not
+            connected to the canteen.
+          </p>
+
+          <div class="addon-grid">
+            <article class="addon-card" aria-labelledby="menu-title">
+              <div class="addon-head">
+                <span class="addon-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+                </span>
+                <h3 id="menu-title">Today's menu</h3>
+              </div>
+              <ul class="menu-list" id="menu-list"></ul>
+            </article>
+
+            <article class="addon-card" aria-labelledby="preorder-title">
+              <div class="addon-head">
+                <span class="addon-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 8h14l-1.5 12h-11z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+                </span>
+                <h3 id="preorder-title">Pre-order &amp; pickup</h3>
+              </div>
+              <label class="addon-label" for="preorder-item">Dish</label>
+              <select id="preorder-item" class="addon-select"></select>
+              <p class="addon-label">Pickup time</p>
+              <div class="time-chips" id="pickup-times" role="group" aria-label="Pickup time"></div>
+              <button type="button" class="addon-button" id="preorder-button">Pre-order (demo)</button>
+              <div class="pickup-ticket" id="pickup-ticket" hidden aria-live="polite"></div>
+            </article>
+
+            <article class="addon-card" aria-labelledby="queue-title">
+              <div class="addon-head">
+                <span class="addon-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="8" r="2.5"/><circle cx="12" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M3 19c0-3 1.5-5 3-5s3 2 3 5M9 19c0-3 1.5-5 3-5s3 2 3 5M15 19c0-3 1.5-5 3-5s3 2 3 5"/></svg>
+                </span>
+                <h3 id="queue-title">Queue at the counters</h3>
+              </div>
+              <div id="queue-list"></div>
+              <p class="addon-foot">Would reuse the same camera zones as the tables.</p>
+            </article>
+
+            <article class="addon-card" aria-labelledby="busy-title">
+              <div class="addon-head">
+                <span class="addon-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/></svg>
+                </span>
+                <h3 id="busy-title">Busy times today</h3>
+              </div>
+              <div class="busy-chart" id="busy-chart" role="img" aria-label="Typical canteen crowding by time of day"></div>
+              <p class="addon-foot" id="busy-hint"></p>
+            </article>
+          </div>
+        </section>
+
+        <section
+          class="demo-banner"
+          role="note"
+          aria-label="Prototype data notice"
+        >
+          <span class="demo-icon" aria-hidden="true">✦</span>
+          <div>
+            <strong>PROTOTYPE · RECORDED-VIDEO DEMO</strong>
+            <span>
+              Camera results are estimates. Only staff can mark a table
+              Available.
+            </span>
+          </div>
+        </section>
+
+        <section class="venue-card" aria-label="Current demonstration venue">
+          <div class="venue-symbol" aria-hidden="true">⌂</div>
+          <div class="venue-info">
+            <p class="eyebrow">VENUE</p>
+            <h2 id="venue-name">Loading venue…</h2>
+            <p id="venue-description"></p>
+          </div>
+          <span class="venue-chip" id="venue-type">Canteen</span>
+        </section>
+
         <section class="explain-card" aria-labelledby="how-it-works-title">
           <div class="explain-icon" aria-hidden="true">i</div>
           <div>
-            <h2 id="how-it-works-title">How does this prototype work?</h2>
+            <h2 id="how-it-works-title">How does it work?</h2>
             <p>
-              An administrator currently sets table statuses manually. FastAPI saves
-              those updates in SQLite, and this page checks for changes every five
-              seconds. Separately, the admin editor saves camera table zones in SQLite,
-              and YOLO has been tested on recorded video and sample person detections.
-              Automatic occupancy decisions have <strong>not</strong> been connected to
-              this dashboard. <strong>Unknown</strong> means availability has not been
-              verified.
+              Each table runs in one of two modes. In <strong>manual</strong>
+              mode, staff set the status. In <strong>automatic</strong> mode,
+              YOLO looks for a person inside the table's zone on a recorded
+              video: a person seen in the last two minutes shows
+              <strong>Occupied</strong> (a camera estimate), otherwise
+              <strong>Unknown</strong>. The camera never marks a table
+              Available, because an empty-looking seat may still be taken.
             </p>
           </div>
         </section>
 
-        <section class="explain-card" aria-labelledby="vision-heading">
-          <div class="explain-icon" aria-hidden="true">◉</div>
-          <div>
-            <p class="eyebrow">COMPUTER VISION / EXPERIMENTAL</p>
-            <h2 id="vision-heading">Camera analysis</h2>
-
+        <details class="explain-card behind-scenes">
+          <summary>
+            <span class="explain-icon" aria-hidden="true">◉</span>
+            <span>Behind the scenes: camera analysis</span>
+          </summary>
+          <div class="behind-body">
             <p>
-              These are saved observations from a recorded-video
-              experiment, not live seating availability.
-              A detected person does not necessarily mean a table
-              is occupied, and no detection does not prove it is free.
+              Saved observations from the recorded-video experiment. A detected
+              person does not always mean a table is taken, and no detection
+              does not prove it is free.
             </p>
-
             <ul id="vision-observation-list">
               <li>Loading camera observations…</li>
             </ul>
-
-            <p id="vision-observation-sync">
-              Waiting for the vision API…
-            </p>
+            <p id="vision-observation-sync">Waiting for the vision API…</p>
           </div>
-        </section>
+        </details>
       </main>
       <footer class="footer">
         <span>Smart Canteen · Case competition prototype</span>

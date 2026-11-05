@@ -1,175 +1,238 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <title>Smart Canteen | Admin</title>
-
-    <link rel="stylesheet" href="styles.css?v=7" />
-    <script src="admin.js?v=17" defer></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111c20" />
+    <title>Smart Canteen | Staff</title>
+    <link rel="stylesheet" href="styles.css?v=12" />
+    <script src="admin.js?v=21" defer></script>
   </head>
-
   <body class="admin-body">
-    <!-- Admin page header and navigation -->
-    <header class="admin-header">
-      <div>
-        <p class="eyebrow">Admin workspace</p>
-        <h1>Smart Canteen — Zone Editor</h1>
-        <p class="admin-subtitle">
-          Configure table zones and manage seating availability.
-        </p>
-      </div>
-
-      <nav class="admin-nav">
-        <a class="admin-link" href="/">
-          <span aria-hidden="true">←</span>
-          <span>Back to dashboard</span>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Smart Canteen student page">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <rect x="4" y="5" width="16" height="11" rx="3" stroke="currentColor" stroke-width="1.8" />
+              <path d="M8 16v4M16 16v4M8 3v2M16 3v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span>Smart<span class="brand-accent">Canteen</span></span>
         </a>
-      </nav>
-    </header>
+        <a class="admin-link" href="/">
+          <span aria-hidden="true">←</span> Student page
+        </a>
+      </header>
 
-    <main class="admin-main">
-      <!-- Table-zone configuration -->
-      <section class="admin-panel">
-        <h2>Table Zone Editor</h2>
-        <p>
-         Draw rectangular zones around tables in the reference image. Zone configurations are saved in SQLite and linked to physical tables.
-        </p>
-
-        <!-- Choose the type of reference footage. -->
-        <div class="source-controls">
-        <!-- Two choices are easier to understand as tabs. -->
-        <fieldset class="source-mode-group">
-          <legend>Reference source</legend>
-
-          <div class="source-mode-options">
-            <label class="source-mode-choice">
-              <input type="radio" name="source-mode" value="image" checked />
-              <span>Static image</span>
-            </label>
-
-            <label class="source-mode-choice">
-              <input type="radio" name="source-mode" value="video" disabled />
-              <span>Recorded video</span>
-            </label>
-          </div>
-        </fieldset>
-
-          <!-- Show this file picker when video mode is enabled. -->
-          <div id="video-input-row" hidden>
-            <label for="video-file">Choose a recorded video</label>
-            <input
-              id="video-file"
-              type="file"
-              accept="video/mp4,video/webm"
-            />
-
-            <!-- Capture the current video frame for table-zone editing. -->
-          <button
-            id="capture-video-frame"
-            type="button"
-            disabled
-          >
-            Capture Frame & Edit Zones
-          </button>
-          </div>
-        </div>
-                <!-- Step 1: Choose which physical table to configure. -->
-        <label for="zone-table-id">
-          1. Choose a physical table
-        </label>
-
-        <select id="zone-table-id" disabled>
-          <option value="">Loading tables...</option>
-        </select>
-
-        <!-- Step 2: Draw the table boundary. -->
-        <p class="zone-help">
-          <strong>2. Draw the table zone</strong>
-          Click and drag over the image to mark the table.
-        </p>
-
-        <!-- Camera reference image and drawing layer. -->
-        <div class="editor-stage" id="camera-stage">
-          <img
-            src="assets/canteen-demo.png"
-            alt="Reference image of café seating"
-            class="stage-image"
-            draggable="false"
-          />
-
-          <!-- Recorded footage uses the same editor stage. -->
-        <video
-          id="stage-video"
-          class="stage-video"
-          controls
-          playsinline
-          preload="metadata"
-          hidden
-        ></video>
-
-        <!-- A frozen video frame used for drawing table zones. -->
-        <canvas
-          id="frozen-video-frame"
-          class="frozen-video-frame"
-          aria-label="Captured video frame for table-zone editing"
-          hidden
-        ></canvas>
-          <div id="zone-layer" class="zone-layer" aria-hidden="true"></div>
-        </div>
-
-        <!-- Step 3: Save to SQLite. -->
-        <button id="save-zone" type="button" disabled>
-          3. Save Zone
-        </button>
-
-        <!-- Show drawing, saving, and error messages to the admin. -->
-        <p id="zone-status" class="zone-status" aria-live="polite">
-          No table zones configured.
-        </p>
-      </section>
-
-      <!-- Zone list and manual availability controls -->
-      <aside class="admin-panel">
-        <h2>Configured tables</h2>
-        <p>Manage the table zones configured for this reference image.</p>
-
-        <!-- JavaScript generates this list from localStorage -->
-        <ul id="table-list" class="table-list">
-          <li class="table-list-empty">No configured tables yet.</li>
-        </ul>
-
-        <!-- Manual table statuses are saved through FastAPI and SQLite -->
-        <section class="manual-status">
-          <h3>Manual status update</h3>
-
-          <label for="manual-table-id"> Select database table </label>
-
-          <!-- JavaScript loads database tables into this dropdown -->
-          <select id="manual-table-id" disabled>
-            <option value="">Loading tables...</option>
-          </select>
-
-          <label for="table-01-status"> New status </label>
-
-          <select id="table-01-status">
-            <option value="available">Available</option>
-            <option value="occupied">Occupied</option>
-            <option value="unknown">Unknown</option>
-          </select>
-
-          <!-- Enabled after database tables load successfully -->
-          <button id="apply-status" type="button" disabled>
-            Update selected table
-          </button>
-
-          <!-- Displays loading, success and error messages -->
-          <p id="status-feedback" role="status">
-            Waiting for database tables...
+      <main class="admin-main">
+        <section class="admin-intro">
+          <p class="eyebrow">STAFF CONTROLS</p>
+          <h1 class="admin-title">Manage tables</h1>
+          <p class="admin-subtitle">
+            Enter the admin key once, then set statuses, switch modes or run the
+            camera analysis. Students see changes within five seconds.
           </p>
         </section>
-      </aside>
-    </main>
+
+        <section class="admin-card key-card" aria-labelledby="key-title">
+          <span class="step-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3M21 12v2"/></svg>
+          </span>
+          <div class="key-body">
+            <label id="key-title" for="admin-key">Admin key</label>
+            <input
+              id="admin-key"
+              type="password"
+              autocomplete="off"
+              placeholder="Paste the admin key"
+            />
+          </div>
+          <p class="key-hint">Stays filled while this page is open. Every change needs it.</p>
+        </section>
+
+        <div class="admin-grid">
+          <section class="admin-card" aria-labelledby="status-title">
+            <div class="card-head">
+              <span class="step-badge">1</span>
+              <div>
+                <h2 id="status-title">Table status</h2>
+                <p>Set what students see for each table.</p>
+              </div>
+            </div>
+
+            <div class="control-block manual-status">
+              <h3>Set a status</h3>
+              <label for="manual-table-id">Table</label>
+              <select id="manual-table-id" disabled>
+                <option value="">Loading tables…</option>
+              </select>
+              <label for="table-01-status">Status</label>
+              <select id="table-01-status">
+                <option value="available">✓ Available</option>
+                <option value="occupied">● Occupied</option>
+                <option value="unknown">? Unknown</option>
+              </select>
+              <button id="apply-status" class="primary-button" type="button" disabled>
+                Save status
+              </button>
+              <p id="status-feedback" class="feedback" role="status">Waiting for tables…</p>
+            </div>
+
+            <div class="control-block table-mode-controls">
+              <h3>Manual or automatic</h3>
+              <label for="mode-table-id">Table</label>
+              <select id="mode-table-id">
+                <option value="">Loading tables…</option>
+              </select>
+              <label for="table-status-mode">Mode</label>
+              <select id="table-status-mode">
+                <option value="manual">Manual · staff set the status</option>
+                <option value="automatic">Automatic · camera estimate</option>
+              </select>
+              <button id="save-table-mode" class="primary-button" type="button">
+                Apply mode
+              </button>
+              <p id="table-mode-status" class="feedback" role="status" aria-live="polite"></p>
+              <p class="hint">
+                Automatic shows Occupied when the camera saw someone in the last
+                2 minutes, otherwise Unknown. It never shows Available.
+              </p>
+            </div>
+
+            <div class="control-block add-table">
+              <h3>Add a table</h3>
+              <div class="inline-fields">
+                <div>
+                  <label for="new-table-label">Name</label>
+                  <input id="new-table-label" type="text" maxlength="40" placeholder="e.g. Table 05" />
+                </div>
+                <div>
+                  <label for="new-table-seats">Seats</label>
+                  <input id="new-table-seats" type="number" min="1" max="20" value="4" />
+                </div>
+              </div>
+              <button id="add-table" class="secondary-button" type="button">+ Add table</button>
+              <p id="add-table-status" class="feedback" role="status" aria-live="polite"></p>
+              <p class="hint">Then draw its zone in step 3 so the camera can watch it.</p>
+            </div>
+          </section>
+
+          <section class="admin-card" aria-labelledby="analysis-title">
+            <div class="card-head">
+              <span class="step-badge">2</span>
+              <div>
+                <h2 id="analysis-title">Camera analysis</h2>
+                <p>Run YOLO on the uploaded CAM-02 video.</p>
+              </div>
+            </div>
+            <div class="control-block">
+              <button id="start-analysis" class="primary-button big" type="button">
+                ▶ Start analysis
+              </button>
+              <p id="analysis-status" class="feedback" role="status" aria-live="polite"></p>
+              <ol class="steps-list">
+                <li>Set the tables you want to watch to <strong>Automatic</strong>.</li>
+                <li>Click <strong>Start analysis</strong>.</li>
+                <li>Watch the student page: a person in a zone shows <strong>Occupied</strong>.</li>
+              </ol>
+              <p class="hint">
+                To use a different recording, choose <strong>Recorded video</strong>
+                in step 3 and upload an MP4.
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <section class="admin-card" aria-labelledby="zones-title">
+          <div class="card-head">
+            <span class="step-badge">3</span>
+            <div>
+              <h2 id="zones-title">Camera zones <span class="setup-tag">one-time setup</span></h2>
+              <p>Draw a box around each table so the camera knows where it is.</p>
+            </div>
+          </div>
+
+          <div class="zone-layout">
+            <div class="zone-editor">
+              <fieldset class="source-mode-group">
+                <legend>Camera view</legend>
+                <div class="source-mode-options">
+                  <label class="source-mode-choice">
+                    <input type="radio" name="source-mode" value="image" checked />
+                    <span>CAM-01 · still image</span>
+                  </label>
+                  <label class="source-mode-choice">
+                    <input type="radio" name="source-mode" value="video" disabled />
+                    <span>CAM-02 · recorded video</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <div id="video-input-row" class="video-row" hidden>
+                <label for="video-file">Recorded video (MP4, max 50 MB)</label>
+                <input id="video-file" type="file" accept="video/mp4,video/webm" />
+                <div class="button-row">
+                  <button id="upload-video" class="secondary-button" type="button">
+                    Upload video
+                  </button>
+                  <button id="capture-video-frame" class="secondary-button" type="button" disabled>
+                    Capture frame to draw on
+                  </button>
+                </div>
+                <p id="upload-status" class="feedback" role="status" aria-live="polite"></p>
+              </div>
+
+              <div class="zone-steps">
+                <label for="zone-table-id"><span class="mini-step">a</span> Choose a table</label>
+                <select id="zone-table-id" disabled>
+                  <option value="">Loading tables…</option>
+                </select>
+                <p class="zone-help">
+                  <span class="mini-step">b</span> Click and drag on the picture to draw its zone.
+                </p>
+              </div>
+
+              <div class="editor-stage" id="camera-stage">
+                <img
+                  src="assets/canteen-demo.png?v=2"
+                  alt="Reference camera view of the seating area"
+                  class="stage-image"
+                  draggable="false"
+                />
+                <video id="stage-video" class="stage-video" controls playsinline preload="metadata" hidden></video>
+                <canvas
+                  id="frozen-video-frame"
+                  class="frozen-video-frame"
+                  aria-label="Captured video frame for drawing table zones"
+                  hidden
+                ></canvas>
+                <div id="zone-layer" class="zone-layer" aria-hidden="true"></div>
+              </div>
+
+              <button id="save-zone" class="primary-button" type="button" disabled>
+                <span class="mini-step dark">c</span> Save zone
+              </button>
+              <p id="zone-status" class="feedback zone-status" aria-live="polite">
+                No table zones configured.
+              </p>
+            </div>
+
+            <aside class="zone-list-panel" aria-labelledby="saved-zones-title">
+              <h3 id="saved-zones-title">Saved zones</h3>
+              <p class="hint">For the camera view selected on the left.</p>
+              <ul id="table-list" class="table-list">
+                <li class="table-list-empty">No configured tables yet.</li>
+              </ul>
+            </aside>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Smart Canteen · Staff controls</span>
+        <span>Prototype · recorded-video demo</span>
+      </footer>
+    </div>
   </body>
 </html>

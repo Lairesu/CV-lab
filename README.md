@@ -1,101 +1,63 @@
-# Smart Canteen — Session 02 starter
+# Smart Canteen
 
-This is a **static sample-data-only dashboard**. It has **no backend, camera, YOLO inference, or live occupancy status**.
+A university case-competition prototype that shows students which canteen tables are **Available**, **Occupied** or **Unknown**.
 
-## Prerequisites
-- Your existing `/srv/data/syncthing/Github/CV-lab` directory
-- An existing `docker-compose.yml` with the `vision` service (unchanged)
-- Docker Compose on the Debian host
+- **Manual mode:** staff set a table's status.
+- **Automatic mode:** YOLO looks for people inside each table's zone on a recorded video. A person seen in the last 2 minutes shows **Occupied** (a camera estimate), otherwise **Unknown**. The camera never marks a table Available.
 
-## 1. Read-only verification, on the Debian host
+## Services
 
-```bash
-cd /srv/data/syncthing/Github/CV-lab
-pwd
-ls -la
-docker compose config --services
-docker compose ps
-ls -la projects/smart-canteen 2>/dev/null || echo "New app directory"
-```
-
-Expected: the `vision` service exists. Stop if existing files conflict with this starter; do not overwrite them blindly.
-
-## 2. Unpack the starter
-
-Download this ZIP to your Debian host (for example into `~/Downloads`).
-
-From `/srv/data/syncthing/Github/CV-lab`, check the archive first:
-
-```bash
-unzip -l ~/Downloads/smart-canteen-session02-starter.zip
-```
-
-If all destinations are new, extract:
-
-```bash
-unzip -n ~/Downloads/smart-canteen-session02-starter.zip -d .
-```
-
-`-n` will **not overwrite existing files**. Review if any files were skipped.
-
-## 3. Validate the combined Compose configuration
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dashboard.yml config --services
-docker compose -f docker-compose.yml -f docker-compose.dashboard.yml config --quiet
-```
-
-Expected: `vision` and `dashboard` exist and config is valid. Both Compose files use the same project directory and Docker will merge the service definitions.
-
-## 4. Start ONLY the dashboard service
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dashboard.yml up -d --no-deps dashboard
-docker compose -f docker-compose.yml -f docker-compose.dashboard.yml ps dashboard
-curl -I http://127.0.0.1:8099/
-```
-
-Expected: HTTP 200; site opens at `http://localhost:8099/` **on the Debian homelab itself**.
-
-`127.0.0.1` is intentional: the dashboard is only locally exposed while being developed. We can later publish it safely to other devices or via Tailscale after testing.
-
-## 5. Run acceptance checks
-
-- Banner says **DEMO MODE · SAMPLE DATA ONLY**.
-- All six tables display; three Available, two Occupied, one Unknown.
-- Status filters work without page reload.
-- Site is usable at mobile viewport width.
-- No camera or real availability claims are displayed.
-- Existing `vision` container has not been modified.
-
-## Layout and extensibility
+| Service | Compose file | Role | Host port |
+|---|---|---|---|
+| `dashboard` | `docker-compose.dashboard.yml` | Nginx: serves the frontend, proxies `/api/` | `127.0.0.1:8099` |
+| `api` | `docker-compose.api.yml` | FastAPI + SQLite (named volume) | `127.0.0.1:8100` |
+| `vision` | `docker-compose.yml` | YOLO worker that analyses `media/cam-02.mp4` | `127.0.0.1:8098` |
 
 ```text
-CV-lab/
-├── docker-compose.yml                 # existing, not touched
-├── docker-compose.dashboard.yml       # new service, separate file
-├── models/                            # existing YOLO models
-└── projects/
-    └── smart-canteen/
-        └── frontend/
-            ├── index.html
-            ├── styles.css
-            ├── sample-data.js        # venue-specific config + mock tables
-            └── app.js                # reusable rendering/filter logic
+projects/
+├── canteen-vision/        YOLO worker, zone matching, publishers
+└── smart-canteen/
+    ├── backend/           app.py (routes), database.py (SQLite)
+    ├── frontend/          index.html (students), admin.html (staff)
+    ├── nginx/             default.conf
+    └── media/             cam-02.mp4 (uploaded from the admin page)
 ```
 
-Venue metadata and table statuses intentionally live in `sample-data.js`, not hard-coded into UI components. This supports future café, restaurant and shared-space use cases, though the MVP remains a canteen demo.
+## Configuration
 
-## Stop only the dashboard
+Create `.env` next to the Compose files (never commit it):
+
+```text
+SMART_CANTEEN_ADMIN_KEY=<long random string>
+SMART_CANTEEN_WORKER_KEY=<different long random string>
+LOCAL_UID=<your uid>
+LOCAL_GID=<your gid>
+VIDEO_GID=<gid of /dev/video0>
+```
+
+## Run
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dashboard.yml stop dashboard
+docker compose -f docker-compose.yml -f docker-compose.dashboard.yml -f docker-compose.api.yml up -d --build
 ```
 
-## Next session milestones
+- Student page: `http://127.0.0.1:8099/`
+- Admin page: `http://127.0.0.1:8099/admin.html`
+- API health: `http://127.0.0.1:8100/health`
 
-- Browser-based administrator table-zone editor (normalized coordinates)
-- Backend API for real occupancy snapshots
-- Computer vision temporal logic with Unknown state
-- Replay of authorized prerecorded video; later permitted fixed-camera input
-- Privacy/legal review before real-world installation
+## API
+
+| Route | Access |
+|---|---|
+| `GET /api/db/tables` · `/api/db/zones` · `/api/db/vision-observations` | Public read |
+| `PATCH /api/db/tables/{id}/status` | Admin key |
+| `PATCH /api/admin/tables/{id}/mode` | Admin key |
+| `POST /api/db/zones` · `DELETE /api/db/zones/{id}` | Admin key |
+| `POST /api/admin/media/CAM-02` · `POST /api/admin/analysis/start` | Admin key |
+| `POST /internal/vision/observations` | Worker key |
+
+Admin requests send the `X-Admin-Key` header; the worker sends `X-Worker-Key`.
+
+## Limits
+
+Prototype only: recorded video instead of a live camera, no measured accuracy, one shared admin key, and no production hosting or privacy review.

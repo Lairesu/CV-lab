@@ -1,4 +1,3 @@
-
 "use strict";
 
 (() => {
@@ -24,10 +23,9 @@
     loading = true;
 
     try {
-      const response = await fetch(
-        "/api/db/vision-observations",
-        { cache: "no-store" }
-      );
+      const response = await fetch("/api/db/vision-observations", {
+        cache: "no-store",
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -52,17 +50,13 @@
         const item = document.createElement("li");
 
         const title = document.createElement("strong");
-        title.textContent =
-          `${observation.table_id} (${observation.camera_id})`;
+        title.textContent = `${observation.table_id} (${observation.camera_id})`;
 
         const detail = document.createElement("div");
-        detail.textContent = describeObservation(
-          observation.observation
-        );
+        detail.textContent = describeObservation(observation.observation);
 
         const timestamp = document.createElement("small");
-        timestamp.textContent =
-          `Recorded at ${observation.observed_at} UTC`;
+        timestamp.textContent = `Recorded at ${observation.observed_at} UTC`;
 
         item.append(title, detail, timestamp);
         list.appendChild(item);

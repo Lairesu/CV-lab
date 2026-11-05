@@ -1,13 +1,25 @@
-
 import sqlite3
 from contextlib import closing
 
 DB_PATH = "/data/smart-canteen.db"
 
+# How long a camera "person_detected" result counts as current.
+FRESHNESS_SECONDS = 120
+
+DEMO_TABLES = [
+    ("T-01", "demo-cafe", "Table 01", "Terrace", 4),
+    ("T-02", "demo-cafe", "Table 02", "Terrace", 4),
+    ("T-03", "demo-cafe", "Table 03", "Terrace", 4),
+    ("T-04", "demo-cafe", "Table 04", "Terrace", 4),
+]
+
+
+def connect():
+    return closing(sqlite3.connect(DB_PATH))
+
 
 def initialize_database():
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        # Existing physical tables.
+    with connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tables (
                 id TEXT PRIMARY KEY,
@@ -16,13 +28,19 @@ def initialize_database():
                 area TEXT NOT NULL,
                 seats INTEGER NOT NULL CHECK(seats > 0),
                 status TEXT NOT NULL DEFAULT 'unknown'
-                    CHECK(status IN (
-                        'available', 'occupied', 'unknown'
-                    ))
+                    CHECK(status IN ('available', 'occupied', 'unknown'))
             )
         """)
 
-        # Session 04: camera zones associated with physical tables.
+        # Migration for databases created before status modes existed.
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(tables)")}
+        if "status_mode" not in columns:
+            conn.execute("""
+                ALTER TABLE tables
+                ADD COLUMN status_mode TEXT NOT NULL DEFAULT 'manual'
+                CHECK(status_mode IN ('manual', 'automatic'))
+            """)
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS table_zones (
                 id INTEGER PRIMARY KEY,
@@ -40,187 +58,164 @@ def initialize_database():
             )
         """)
 
-        # Session 06: latest computer-vision observation for each
-        # physical table as seen by a particular camera.
-        # Separate from the administrator's manual status.
+        # Latest camera result per camera/table, kept apart from the manual status.
         conn.execute("""
             CREATE TABLE IF NOT EXISTS vision_observations (
                 camera_id TEXT NOT NULL,
                 table_id TEXT NOT NULL REFERENCES tables(id),
-
                 observation TEXT NOT NULL
                     CHECK(observation IN (
-                        'person_detected',
-                        'no_person_detected',
-                        'unknown'
+                        'person_detected', 'no_person_detected', 'unknown'
                     )),
-
                 people_detected INTEGER NOT NULL DEFAULT 0
                     CHECK(people_detected >= 0),
-
                 source TEXT NOT NULL DEFAULT 'recorded_video_demo',
                 observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
                 PRIMARY KEY (camera_id, table_id)
             )
         """)
 
-
-        # Initial demonstration records only.
-        demo_tables = [
-            ("T-01", "demo-cafe", "Table 01", "Terrace", 4),
-            ("T-02", "demo-cafe", "Table 02", "Terrace", 4),
-            ("T-03", "demo-cafe", "Table 03", "Terrace", 4),
-            ("T-04", "demo-cafe", "Table 04", "Terrace", 4),
-        ]
-
         conn.executemany("""
-            INSERT OR IGNORE INTO tables
-                (id, venue_id, label, area, seats)
+            INSERT OR IGNORE INTO tables (id, venue_id, label, area, seats)
             VALUES (?, ?, ?, ?, ?)
-        """, demo_tables)
-
+        """, DEMO_TABLES)
         conn.commit()
 
 
 def read_tables():
-    with closing(sqlite3.connect(DB_PATH)) as conn:
+    # Effective status: manual tables show the saved status. Automatic tables
+    # show "occupied" only for a recent person detection in a configured zone,
+    # otherwise "unknown". The camera never produces "available".
+    with connect() as conn:
         conn.row_factory = sqlite3.Row
-
-        rows = conn.execute("""
-            SELECT id, venue_id, label, area, seats, status
-            FROM tables
-            ORDER BY label
+        rows = conn.execute(f"""
+            SELECT
+                t.id,
+                t.venue_id,
+                t.label,
+                t.area,
+                t.seats,
+                t.status AS manual_status,
+                t.status_mode,
+                CASE
+                    WHEN t.status_mode = 'manual' THEN t.status
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM vision_observations v
+                        JOIN table_zones z
+                          ON z.table_id = v.table_id
+                         AND z.camera_id = v.camera_id
+                        WHERE v.table_id = t.id
+                          AND v.observation = 'person_detected'
+                          AND v.observed_at >= datetime('now', '-{FRESHNESS_SECONDS} seconds')
+                    ) THEN 'occupied'
+                    ELSE 'unknown'
+                END AS status
+            FROM tables t
+            ORDER BY t.label
         """).fetchall()
-
         return [dict(row) for row in rows]
 
 
+def create_table(label: str, seats: int, area: str = "Canteen") -> dict:
+    with connect() as conn:
+        ids = [row[0] for row in conn.execute("SELECT id FROM tables WHERE id LIKE 'T-%'")]
+        numbers = [int(i[2:]) for i in ids if i[2:].isdigit()]
+        number = max(numbers, default=0) + 1
+        table_id = f"T-{number:02d}"
+        label = label.strip() or f"Table {number:02d}"
+
+        conn.execute("""
+            INSERT INTO tables (id, venue_id, label, area, seats)
+            VALUES (?, 'demo-cafe', ?, ?, ?)
+        """, (table_id, label, area, seats))
+        conn.commit()
+        return {"id": table_id, "label": label, "area": area, "seats": seats}
+
+
 def update_table_status(table_id: str, new_status: str) -> bool:
-    with closing(sqlite3.connect(DB_PATH)) as conn:
+    with connect() as conn:
         cursor = conn.execute(
             "UPDATE tables SET status = ? WHERE id = ?",
-            (new_status, table_id)
+            (new_status, table_id),
         )
-
         conn.commit()
-
         return cursor.rowcount == 1
 
-def read_zones():
-    # Open SQLite to retrieve zones and their physical table labels.
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        conn.row_factory = sqlite3.Row
 
-        # JOIN connects each camera zone to its physical table.
-        # We use the existing label instead of storing a duplicate.
+def update_table_mode(table_id: str, new_mode: str) -> bool:
+    if new_mode not in ("manual", "automatic"):
+        return False
+    with connect() as conn:
+        cursor = conn.execute(
+            "UPDATE tables SET status_mode = ? WHERE id = ?",
+            (new_mode, table_id),
+        )
+        conn.commit()
+        return cursor.rowcount == 1
+
+
+def read_zones():
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
         rows = conn.execute("""
-            SELECT
-                z.id,
-                z.table_id,
-                t.label AS label,
-                z.camera_id,
-                z.x,
-                z.y,
-                z.width,
-                z.height
+            SELECT z.id, z.table_id, t.label AS label, z.camera_id,
+                   z.x, z.y, z.width, z.height
             FROM table_zones AS z
             JOIN tables AS t ON z.table_id = t.id
             ORDER BY z.id
         """).fetchall()
-
         return [dict(row) for row in rows]
 
+
 def create_zone(table_id, camera_id, x, y, width, height):
-    # Open our SQLite database.
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-
-        # Reject zones assigned to physical tables that don't exist.
+    with connect() as conn:
         conn.execute("PRAGMA foreign_keys = ON")
-
-        # Use SQL placeholders to safely insert the provided values.
         cursor = conn.execute("""
-            INSERT INTO table_zones
-                (table_id, camera_id, x, y, width, height)
+            INSERT INTO table_zones (table_id, camera_id, x, y, width, height)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (table_id, camera_id, x, y, width, height))
-
-        # Commit because INSERT modifies the database.
         conn.commit()
-
-        # Return the unique ID assigned to the new zone.
         return cursor.lastrowid
 
 
 def delete_zone(zone_id: int) -> bool:
-    # Delete only this camera zone, not its physical table.
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-
-        # The placeholder safely passes the requested zone ID.
-        cursor = conn.execute(
-            "DELETE FROM table_zones WHERE id = ?",
-            (zone_id,)
-        )
-
-        # Make the deletion permanent.
+    with connect() as conn:
+        cursor = conn.execute("DELETE FROM table_zones WHERE id = ?", (zone_id,))
         conn.commit()
-
-        # True means a matching zone existed and was deleted.
         return cursor.rowcount == 1
 
 
-
-def save_vision_observation(
-    camera_id, table_id, observation, people_detected
-):
-    """Save the latest observation without changing manual status."""
-
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-
-        # Only accept a table configured for this camera.
-        existing_zone = conn.execute("""
+def save_vision_observation(camera_id, table_id, observation, people_detected):
+    with connect() as conn:
+        has_zone = conn.execute("""
             SELECT 1 FROM table_zones
             WHERE camera_id = ? AND table_id = ?
             LIMIT 1
         """, (camera_id, table_id)).fetchone()
-
-        if existing_zone is None:
+        if has_zone is None:
             return False
 
         conn.execute("""
             INSERT INTO vision_observations
                 (camera_id, table_id, observation, people_detected)
             VALUES (?, ?, ?, ?)
-
-            ON CONFLICT(camera_id, table_id)
-            DO UPDATE SET
+            ON CONFLICT(camera_id, table_id) DO UPDATE SET
                 observation = excluded.observation,
                 people_detected = excluded.people_detected,
                 observed_at = CURRENT_TIMESTAMP
-        """, (
-            camera_id, table_id, observation, people_detected
-        ))
-
+        """, (camera_id, table_id, observation, people_detected))
         conn.commit()
         return True
 
 
 def read_vision_observations():
-    """Return the most recent observation for each camera/table."""
-
-    with closing(sqlite3.connect(DB_PATH)) as conn:
+    with connect() as conn:
         conn.row_factory = sqlite3.Row
-
         rows = conn.execute("""
-            SELECT
-                camera_id,
-                table_id,
-                observation,
-                people_detected,
-                source,
-                observed_at
+            SELECT camera_id, table_id, observation, people_detected,
+                   source, observed_at
             FROM vision_observations
             ORDER BY camera_id, table_id
         """).fetchall()
-
         return [dict(row) for row in rows]
