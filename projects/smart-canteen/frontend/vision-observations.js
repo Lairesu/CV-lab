@@ -77,8 +77,22 @@
     }
   }
 
-  loadVisionObservations();
+  // Only poll while the "Behind the scenes" panel is open, to halve the load
+  // when many phones have the page open at once.
+  const panel = list.closest("details");
+  let timer = null;
 
-  // Refresh saved observations every five seconds.
-  setInterval(loadVisionObservations, 5000);
+  function syncPolling() {
+    const open = !panel || panel.open;
+    if (open && timer === null) {
+      loadVisionObservations();
+      timer = setInterval(loadVisionObservations, 5000);
+    } else if (!open && timer !== null) {
+      clearInterval(timer);
+      timer = null;
+    }
+  }
+
+  if (panel) panel.addEventListener("toggle", syncPolling);
+  syncPolling();
 })();
